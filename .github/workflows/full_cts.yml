@@ -17,7 +17,10 @@ env:
   CCACHE_COMPRESSLEVEL: "1"
   CCACHE_MAXSIZE: "25000M"
   CCACHE_BASEDIR: ${{ github.workspace }}
-  CCACHE_DIR: /home/github/ccache_storage
+  CCACHE_DIR: "/home/github/ccache_storage"
+  GIT_HTTP_MAX_REQUESTS: "1"
+  GIT_HTTP_LOW_SPEED_LIMIT: "1000"
+  GIT_HTTP_LOW_SPEED_TIME: "1000"
 
 jobs:
   build:
