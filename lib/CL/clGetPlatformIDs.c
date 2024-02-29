@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <string.h>
 #include "pocl_cl.h"
+#include <stdio.h>
 
 #ifdef __GNUC__
 #pragma GCC visibility push(hidden)
@@ -244,6 +245,10 @@ POname(clGetPlatformIDs)(cl_uint           num_entries,
                          cl_platform_id *  platforms,
                          cl_uint *         num_platforms) CL_API_SUFFIX__VERSION_1_0
 {
+
+  printf("## clGetPlatformIDs FROM POCL\n");
+
+
   POCL_RETURN_ERROR_COND ((platforms == NULL && num_entries > 0),
                           CL_INVALID_VALUE);
 
