@@ -117,6 +117,10 @@ int pocl_write_module(void *module, const char *path) {
 
 llvm::Module *parseModuleIRMem(const char *input_stream, size_t size,
                                llvm::LLVMContext *c) {
+
+
+  printf("#POCL: -parseModuleIRMem\n");
+  
   StringRef input_stream_ref(input_stream, size);
   std::unique_ptr<MemoryBuffer> buffer =
       MemoryBuffer::getMemBufferCopy(input_stream_ref);

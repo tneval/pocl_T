@@ -28,6 +28,8 @@
 #include "pocl_util.h"
 #include "pocl_shared.h"
 
+#include <stdio.h>
+
 /* max number of lines in output of 'llvm-spirv --spec-const-info' */
 #define MAX_SPEC_CONSTANT_LINES 4096
 /* max bytes in output of 'llvm-spirv --spec-const-info' */
@@ -44,9 +46,13 @@ get_program_spec_constants (cl_program program, char *program_bc_spirv)
 
   errcode = pocl_run_command_capture_output (captured_output, &captured_bytes,
                                              args);
+
+
+  //printf("#POCL: errcode: %d\n",errcode);
+
   POCL_RETURN_ERROR_ON ((errcode != 0), CL_INVALID_BINARY, "External command "
                         "(llvm-spirv --spec-const-info) failed!\n");
-
+ 
   captured_output[captured_bytes] = 0;
   char *lines[MAX_SPEC_CONSTANT_LINES];
   unsigned num_lines = 0;
@@ -67,7 +73,7 @@ get_program_spec_constants (cl_program program, char *program_bc_spirv)
       &num_const);
   POCL_GOTO_ERROR_ON ((r < 1 || num_const > num_lines), CL_INVALID_BINARY,
                       "Can't parse first line of output");
-
+ 
   program->num_spec_consts = num_const;
   if (num_const > 0)
     {
@@ -84,6 +90,7 @@ get_program_spec_constants (cl_program program, char *program_bc_spirv)
           POCL_GOTO_ERROR_ON ((r < 2), CL_INVALID_BINARY,
                               "Can't parse %u-th line of output:\n%s\n",
                               i+1, lines[i+1]);
+          printf("i: %d\n");                                    
           program->spec_const_ids[i] = spec_id;
           program->spec_const_sizes[i] = spec_size;
           program->spec_const_values[i] = 0;
@@ -92,12 +99,14 @@ get_program_spec_constants (cl_program program, char *program_bc_spirv)
     }
   errcode = CL_SUCCESS;
 ERROR:
+
   for (unsigned i = 0; i < num_lines; ++i)
     free (lines[i]);
   if (errcode != CL_SUCCESS)
     {
       program->num_spec_consts = 0;
     }
+    //printf("errcode: %d\n",errcode);
   return errcode;
 }
 #endif
@@ -110,6 +119,9 @@ POname(clCreateProgramWithIL)(cl_context context,
                               cl_int *errcode_ret)
 CL_API_SUFFIX__VERSION_2_1
 {
+
+  printf("-POclCreateProgramWithIL\n");
+
   /* if SPIR-V is disabled, return error early */
 #if defined(ENABLE_CONFORMANCE) && !defined(ENABLE_SPIRV)
   if (errcode_ret)
@@ -179,6 +191,9 @@ CL_API_SUFFIX__VERSION_2_1
   program->program_il_size = length;
   errcode = pocl_cache_write_spirv (program_bc_spirv, (const char *)il,
                                     (uint64_t)length);
+
+  //printf("errcode after pocl_cache_write_spirv: %d\n",errcode);
+
 #ifdef ENABLE_SPIRV
   get_program_spec_constants (program, program_bc_spirv);
 #endif

@@ -60,6 +60,9 @@
 #include "utlist.h"
 #include "utlist_addon.h"
 
+#include <stdio.h>
+#include <string.h>
+
 #ifdef ENABLE_RELOCATION
 #if defined(__APPLE__)
 #define _DARWIN_C_SOURCE
@@ -1831,11 +1834,19 @@ pocl_run_command (char *const *args)
     }
 }
 
+// This function calls llvm-spirv of the DPC++
+
 int
 pocl_run_command_capture_output (char *capture_string, size_t *captured_bytes,
                                  char *const *args)
 {
   POCL_MSG_PRINT_INFO ("Launching: %s\n", args[0]);
+
+
+  printf("#POCL: -pocl_run_command_capture_output: args: %s\n",args[0]);
+  printf("#POCL: -pocl_run_command_capture_output: args: %s\n",args[1]);
+  printf("#POCL: -pocl_run_command_capture_output: args: %s\n",args[2]);
+
 
   int in[2];
   int out[2];

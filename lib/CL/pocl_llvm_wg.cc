@@ -85,7 +85,7 @@ POP_COMPILER_DIAGS
 #include <string>
 #include <thread>
 #include <vector>
-
+#include <stdio.h>
 #include "linker.h"
 
 // Enable to get the LLVM pass execution timing report dumped to console after
@@ -658,6 +658,8 @@ public:
   bool init(const char *ProgramBcBytes,
             size_t ProgramBcSize,
             char* LinkinOutputBCPath) {
+
+    printf("#POCL: ProgramWithContext init\n");              
     Num = 0;
     llvm::Module *P = parseModuleIRMem(ProgramBcBytes, ProgramBcSize, &LLVMCtx);
     if (P == nullptr)
@@ -1135,6 +1137,9 @@ int pocl_llvm_generate_workgroup_function_nowrite(
     unsigned DeviceI, cl_device_id Device, cl_kernel Kernel,
     _cl_command_node *Command, void **Output, int Specialize) {
 
+
+  printf("#pocl: -pocl_llvm_generate_workgroup_function_nowrite\n");
+
   _cl_command_run *RunCommand = &Command->command.run;
   cl_program Program = Kernel->program;
   cl_context ctx = Program->context;
@@ -1272,6 +1277,9 @@ int pocl_llvm_generate_workgroup_function(unsigned DeviceI, cl_device_id Device,
  * NULL */
 int pocl_llvm_read_program_llvm_irs(cl_program program, unsigned device_i,
                                     const char *program_bc_path) {
+
+
+  printf("#POCL: -pocl_llvm_read_program_llvm_irs\n");                                      
   cl_context ctx = program->context;
   PoclLLVMContextData *llvm_ctx = (PoclLLVMContextData *)ctx->llvm_context_data;
   PoclCompilerMutexGuard lockHolder(&llvm_ctx->Lock);

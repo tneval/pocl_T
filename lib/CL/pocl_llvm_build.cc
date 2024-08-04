@@ -828,6 +828,8 @@ int pocl_llvm_link_program(cl_program program, unsigned device_i,
                            int link_device_builtin_library,
                            int linking_into_new_cl_program) {
 
+
+  printf("#POCL: pocl_llvm_link_program\n");                            
   char program_bc_path[POCL_MAX_PATHNAME_LENGTH];
   std::string concated_binaries;
   size_t n = 0, i;
