@@ -1787,7 +1787,16 @@ pocl_command_to_str (cl_command_type cmd)
 int
 pocl_run_command (char *const *args)
 {
+  printf("#pocl_run_command\n");
   POCL_MSG_PRINT_INFO ("Launching: %s\n", args[0]);
+  printf("#arg0: %s\n",args[0]);
+  printf("#arg1: %s\n",args[1]);
+  printf("#arg2: %s\n",args[2]);
+  printf("#arg3: %s\n",args[3]);
+  printf("#arg4: %s\n",args[4]);
+  printf("#arg5: %s\n",args[5]);
+  printf("#arg6: %s\n",args[6]);
+
 #ifdef HAVE_VFORK
   pid_t p = vfork ();
 #elif defined(HAVE_FORK)

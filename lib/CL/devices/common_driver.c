@@ -45,6 +45,8 @@
 #include "builtin_kernels.hh"
 #include "pocl_workgroup_func.h"
 
+#include <stdio.h>
+
 int pocl_setup_builtin_metadata (cl_device_id device, cl_program program,
                                  unsigned program_device_i);
 
@@ -568,6 +570,7 @@ pocl_reload_program_bc (char *program_bc_path, cl_program program,
 static int
 pocl_regen_spirv_binary (cl_program program, cl_uint device_i)
 {
+  printf("# pocl_regen_spirv_binary\n");
 #ifdef LLVM_SPIRV
   int errcode = CL_SUCCESS;
   cl_device_id device = program->devices[device_i];
@@ -659,6 +662,11 @@ static int
 pocl_llvm_convert_and_link_ir (cl_program program, cl_uint device_i,
                                int link_builtin_lib, int spir_build)
 {
+
+
+  printf("# pocl_llvm_convert_and_link_ir\n");
+  printf("# device_i: %d\tlink_builtin_lib: %d\tspir_build: %d\n",device_i, link_builtin_lib,spir_build);
+
   cl_device_id device = program->devices[device_i];
   int errcode;
   char program_bc_path[POCL_MAX_PATHNAME_LENGTH];
@@ -667,7 +675,8 @@ pocl_llvm_convert_and_link_ir (cl_program program, cl_uint device_i,
     {
       int spir_binary
           = pocl_bitcode_is_triple ((char *)program->binaries[device_i],
-                               program->binary_sizes[device_i], "spir");
+                              program->binary_sizes[device_i], "spir");
+      
       if (spir_binary)
         {
           POCL_MSG_PRINT_LLVM ("LLVM-SPIR binary detected\n");
@@ -678,11 +687,14 @@ pocl_llvm_convert_and_link_ir (cl_program program, cl_uint device_i,
       else
         POCL_MSG_PRINT_LLVM ("building from a BC binary for device %d\n",
                              device_i);
+    }else{
+      printf("# NOT program->binaries[device_i]\n");
     }
 
   // SPIR-V requires special handling because of spec constants
   if (program->program_il && program->program_il_size > 0)
     {
+      printf("program->program-il set\n");
 #ifdef ENABLE_SPIRV
       if (!strstr (device->extensions, "cl_khr_il_program"))
         {
@@ -703,6 +715,7 @@ pocl_llvm_convert_and_link_ir (cl_program program, cl_uint device_i,
 
       if (pocl_exists (program_bc_path))
         {
+          printf("#POCL: CACHE DIR EXISTS\n");
           POCL_MSG_PRINT_LLVM ("Found cached compiled SPIRV binary at %s, "
                                "skipping compilation\n",
                                program_bc_path);
@@ -717,6 +730,7 @@ pocl_llvm_convert_and_link_ir (cl_program program, cl_uint device_i,
         }
       else
         {
+          printf("#POCL: CACHE DIR DOES NOT EXIST\n");
           POCL_MSG_PRINT_LLVM ("Cached compiled SPIRV binary not found, "
                                "generating SPIR IR to %s\n",
                                program_bc_path);
@@ -745,6 +759,7 @@ pocl_llvm_convert_and_link_ir (cl_program program, cl_uint device_i,
     }
   else
     {
+      printf("program->program-il NOT set\n");
       /* the hash created here should now reflect the source (LLVM IR),
        * PoCL build, LLVM version, the compiler options, the device's
        * LLVM triple */
@@ -812,6 +827,8 @@ int
 pocl_driver_build_binary (cl_program program, cl_uint device_i,
                           int link_builtin_lib, int spir_build)
 {
+
+  printf("pocl_driver_build_binary\n");
 
 #ifdef ENABLE_LLVM
   /* poclbinary doesn't need special handling */

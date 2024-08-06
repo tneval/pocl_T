@@ -617,6 +617,7 @@ compile_and_link_program(int compile_program,
                                                          void *user_data),
                          void *user_data)
 {
+  printf("# compile_and_link_program\n");
   char link_options[512];
   int errcode, error;
   int create_library = 0;
@@ -631,6 +632,22 @@ compile_and_link_program(int compile_program,
 
   const char *extra_build_options =
     pocl_get_string_option ("POCL_EXTRA_BUILD_FLAGS", NULL);
+
+  if(program->source == NULL){
+    printf("-program source IS NULL\n");
+  }
+  if(program->binaries == NULL){
+    printf("-program binaries IS NULL\n");
+  }
+
+  if(program->builtin_kernel_names == NULL){
+    printf("-program builtin_kernel_names IS NULL\n");
+  }
+
+  if(program->program_il == NULL){
+    printf("-program program_il IS NULL\n");
+  }
+
 
   int build_error_code
       = (link_program ? CL_BUILD_PROGRAM_FAILURE : CL_COMPILE_PROGRAM_FAILURE);
@@ -675,6 +692,7 @@ compile_and_link_program(int compile_program,
 
   if (extra_build_options)
     {
+      printf("extra_build_options\n");
       size_t len = (options != NULL) ? strlen (options) : 0;
       len += strlen (extra_build_options) + 2;
       temp_options = (char *)malloc (len);
@@ -851,6 +869,8 @@ compile_and_link_program(int compile_program,
       /* compile and/or link from binary */
       else
         {
+          printf("device name: %s\n",device->ops->device_name);
+          printf("COMPILE/LINK from binary\n");
           if (device->ops->build_binary == NULL)
             APPEND_TO_BUILD_LOG_GOTO (build_error_code,
                                       "%s device's driver does not support "

@@ -792,6 +792,8 @@ int pocl_llvm_build_program(cl_program program,
 static int pocl_convert_spir_bitcode_to_target(llvm::Module *p,
                                                llvm::Module *libmodule,
                                                cl_device_id device) {
+
+  printf("# pocl_convert_spir_bitcode_to_target\n");
   const std::string &ModTriple = p->getTargetTriple();
   if (ModTriple.find("spir") == 0) {
     POCL_RETURN_ERROR_ON((device->endian_little == CL_FALSE),

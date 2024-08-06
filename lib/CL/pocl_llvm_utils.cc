@@ -120,7 +120,7 @@ llvm::Module *parseModuleIRMem(const char *input_stream, size_t size,
 
 
   printf("#POCL: -parseModuleIRMem\n");
-  
+
   StringRef input_stream_ref(input_stream, size);
   std::unique_ptr<MemoryBuffer> buffer =
       MemoryBuffer::getMemBufferCopy(input_stream_ref);
@@ -136,6 +136,8 @@ llvm::Module *parseModuleIRMem(const char *input_stream, size_t size,
 
 static int getModuleTriple(const char *input_stream, size_t size,
                            std::string &triple) {
+                          
+  printf("# getModuleTriple()\n");
   StringRef input_stream_ref(input_stream, size);
   std::unique_ptr<MemoryBuffer> buffer =
       MemoryBuffer::getMemBufferCopy(input_stream_ref);
@@ -321,6 +323,9 @@ const char *pocl_get_distro_cpu_name(const char *kernellib_variant) {
 #endif
 
 int pocl_bitcode_is_triple(const char *bitcode, size_t size, const char *triple) {
+
+  printf("# pocl_bitcode_is_triple\n");
+
   std::string Triple;
   if (getModuleTriple(bitcode, size, Triple) == 0)
     return Triple.find(triple) != std::string::npos;

@@ -34,6 +34,9 @@ POname (clBuildProgram) (cl_program program,
                          void *user_data)
 CL_API_SUFFIX__VERSION_1_0
 {
+
+   printf("#OCL API clBuildProgram\n");
+
   return compile_and_link_program (1, 1, program,
                                    num_devices, device_list, options,
                                    0, NULL, NULL, 0, NULL,
