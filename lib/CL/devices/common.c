@@ -1766,13 +1766,13 @@ pocl_init_default_device_infos (cl_device_id dev,
                                     | CL_DEVICE_ATOMIC_ORDER_ACQ_REL
                                     | CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP;
 
-  if (dev->llvm_cpu != NULL)
+  if (dev->ops->build_builtin == pocl_driver_build_opencl_builtins)
     {
       dev->builtin_kernel_list
-          = strdup ("pocl.add.i8;"
-                    "org.khronos.openvx.scale_image.nn.u8;"
-                    "org.khronos.openvx.scale_image.bl.u8;"
-                    "org.khronos.openvx.tensor_convert_depth.wrap.u8.f32");
+        = strdup ("pocl.add.i8;"
+                  "org.khronos.openvx.scale_image.nn.u8;"
+                  "org.khronos.openvx.scale_image.bl.u8;"
+                  "org.khronos.openvx.tensor_convert_depth.wrap.u8.f32;");
       dev->num_builtin_kernels = 4;
     }
 }
@@ -1885,6 +1885,7 @@ static const cl_name_version OPENCL_EXTENSIONS[]
       { CL_MAKE_VERSION (1, 0, 0), "cl_khr_local_int32_extended_atomics" },
       { CL_MAKE_VERSION (1, 0, 0), "cl_khr_int64_base_atomics" },
       { CL_MAKE_VERSION (1, 0, 0), "cl_khr_int64_extended_atomics" },
+      { CL_MAKE_VERSION (1, 0, 0), "cl_khr_integer_dot_product" },
       { CL_MAKE_VERSION (1, 0, 0), "cl_khr_subgroups" },
       { CL_MAKE_VERSION (1, 0, 0), "cl_khr_subgroup_extended_types" },
       { CL_MAKE_VERSION (1, 0, 0), "cl_khr_subgroup_non_uniform_vote" },
@@ -1900,6 +1901,9 @@ static const cl_name_version OPENCL_EXTENSIONS[]
       { CL_MAKE_VERSION (2, 0, 0), "cl_khr_depth_images" },
       { CL_MAKE_VERSION (1, 0, 0), "cl_khr_image2d_from_buffer" },
       { CL_MAKE_VERSION (2, 1, 0), "cl_khr_il_program" },
+      { CL_MAKE_VERSION (1, 0, 0), "cl_khr_create_command_queue" },
+      { CL_MAKE_VERSION (1, 0, 0), "cl_khr_pci_bus_info" },
+      { CL_MAKE_VERSION (1, 0, 0), "cl_khr_device_uuid" },
 
       { CL_MAKE_VERSION (0, 9, 4), "cl_khr_command_buffer" },
       { CL_MAKE_VERSION (0, 9, 1), "cl_khr_command_buffer_multi_device" },
@@ -1908,7 +1912,9 @@ static const cl_name_version OPENCL_EXTENSIONS[]
       { CL_MAKE_VERSION (0, 9, 0), "cl_pocl_svm_rect" },
       { CL_MAKE_VERSION (0, 9, 0), "cl_pocl_command_buffer_svm" },
       { CL_MAKE_VERSION (0, 9, 0), "cl_pocl_command_buffer_host_buffer" },
-      { CL_MAKE_VERSION (0, 9, 0), "cl_pocl_command_buffer_host_exec" } };
+      { CL_MAKE_VERSION (0, 9, 0), "cl_pocl_command_buffer_host_exec" },
+      { CL_MAKE_VERSION (0, 1, 0), "cl_exp_tensor" },
+      { CL_MAKE_VERSION (0, 1, 0), "cl_exp_defined_builtin_kernels" } };
 
 const size_t OPENCL_EXTENSIONS_NUM
     = sizeof (OPENCL_EXTENSIONS) / sizeof (OPENCL_EXTENSIONS[0]);
@@ -2032,6 +2038,8 @@ static const cl_name_version OPENCL_C_FEATURES[] = {
   { CL_MAKE_VERSION (3, 0, 0), "__opencl_c_ext_fp16_local_atomic_load_store" },
   { CL_MAKE_VERSION (3, 0, 0), "__opencl_c_ext_fp32_local_atomic_load_store" },
   { CL_MAKE_VERSION (3, 0, 0), "__opencl_c_ext_fp64_local_atomic_load_store" },
+  { CL_MAKE_VERSION (3, 0, 0), "__opencl_c_integer_dot_product_input_4x8bit" },
+  { CL_MAKE_VERSION (3, 0, 0), "__opencl_c_integer_dot_product_input_4x8bit_packed" },
 };
 
 const size_t OPENCL_C_FEATURES_NUM

@@ -70,8 +70,8 @@ class Level0Queue {
 
 public:
   Level0Queue(Level0WorkQueueInterface *WH, ze_command_queue_handle_t Q,
-              ze_command_list_handle_t L,
-              Level0Device *D);
+              ze_command_list_handle_t L, Level0Device *D,
+              size_t MaxPatternSize);
   ~Level0Queue();
 
   Level0Queue(Level0Queue const &) = delete;
@@ -106,6 +106,7 @@ private:
   uint64_t DeviceTimerWrapTimeNs;
   uint64_t DeviceKernelTimerWrapTimeNs;
   uint32_t_3 DeviceMaxWGSizes;
+  uint32_t MaxFillPatternSize;
 
   void read(void *__restrict__ HostPtr,
             pocl_mem_identifier *SrcMemId, cl_mem SrcBuf,
@@ -222,7 +223,8 @@ public:
   Level0QueueGroup(Level0QueueGroup const &&) = delete;
   Level0QueueGroup& operator=(Level0QueueGroup &&) = delete;
 
-  bool init(unsigned Ordinal, unsigned Count, Level0Device *Device);
+  bool init(unsigned Ordinal, unsigned Count, Level0Device *Device,
+            size_t MaxPatternSize);
   void uninit();
 
   void pushWork(_cl_command_node *Command) override;
@@ -279,7 +281,9 @@ public:
                        ze_device_mem_alloc_flags_t DevFlags =
                            ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_CACHED,
                        ze_host_mem_alloc_flags_t HostFlags =
-                           ZE_HOST_MEM_ALLOC_FLAG_BIAS_UNCACHED);
+                           ZE_HOST_MEM_ALLOC_FLAG_BIAS_CACHED |
+                           ZE_HOST_MEM_ALLOC_FLAG_BIAS_INITIAL_PLACEMENT |
+                           ZE_HOST_MEM_ALLOC_FLAG_BIAS_WRITE_COMBINED);
   void *allocDeviceMem(uint64_t Size, ze_device_mem_alloc_flags_t DevFlags =
                                           ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_CACHED);
   void *allocHostMem(uint64_t Size, ze_device_mem_alloc_flags_t HostFlags =
@@ -334,6 +338,13 @@ public:
                      double &NsPerCycle);
   void getMaxWGs(uint32_t_3 *MaxWGs);
   uint32_t getMaxWGSize() { return ClDev->max_work_group_size; }
+  // max WorkGroup size for a particular Kernel
+  uint32_t getMaxWGSizeForKernel(Level0Kernel *Kernel);
+  // max SubGroup size for a particular Kernel
+  uint32_t getMaxSGSizeForKernel(Level0Kernel *Kernel) {
+    // TODO we should get the real value from the L0 API somehow
+    return 8;
+  }
   bool supportsHostUSM() { return ClDev->host_usm_capabs != 0; }
   bool supportsDeviceUSM() { return ClDev->device_usm_capabs != 0; }
   bool supportsSingleSharedUSM() {
@@ -385,8 +396,6 @@ private:
   Level0Program *MemfillProgram;
   Level0Program *ImagefillProgram;
 
-  // TODO check reliability
-  ze_device_uuid_t UUID;
   // TODO: it seems libze just returs zeroes for KernelUUID
   ze_native_kernel_uuid_t KernelUUID;
   std::string KernelCacheHash;
@@ -422,6 +431,7 @@ private:
   bool setupMemoryProperties(bool &HasUSMCapability);
   bool setupCacheProperties();
   bool setupImageProperties();
+  bool setupPCIAddress();
 };
 
 typedef std::unique_ptr<Level0Device> Level0DeviceUPtr;
@@ -441,7 +451,7 @@ public:
 
   ze_context_handle_t getContextHandle() { return ContextH; }
   unsigned getNumDevices() { return Devices.size(); }
-  const ze_driver_uuid_t &getUUID() { return UUID; }
+  const ze_driver_uuid_t *getUUID() { return &UUID; }
   uint32_t getVersion() const { return Version; }
   Level0Device *createDevice(unsigned Index, cl_device_id Dev, const char *Params);
   void releaseDevice(Level0Device *Dev);

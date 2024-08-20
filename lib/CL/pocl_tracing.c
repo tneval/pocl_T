@@ -58,24 +58,12 @@ static const struct pocl_event_tracer *event_tracer = NULL;
 void
 pocl_event_updated (cl_event event, int status)
 {
-  event_callback_item *cb_ptr;
-
   if (event_tracer && event_tracer->event_updated
       && ((1 << status) & event_trace_filter))
     event_tracer->event_updated (event, status);
 
-  /* Event callback handling calls functions in the same order
-     they were added if the status matches the specified one. */
-  for (cb_ptr = event->callback_list; cb_ptr; cb_ptr = cb_ptr->next)
-    {
-      if (cb_ptr->trigger_status == status)
-        {
-          POCL_UNLOCK_OBJ (event);
-          cb_ptr->callback_function (event, cb_ptr->trigger_status,
-                                     cb_ptr->user_data);
-          POCL_LOCK_OBJ (event);
-        }
-    }
+  if (event->callback_list)
+    pocl_event_cb_push (event, status);
 }
 
 static void
@@ -504,6 +492,39 @@ lttng_tracer_event_updated (cl_event event, int status)
                   event->mem_objs[0]->id);
       break;
 
+    case CL_COMMAND_MIGRATE_MEM_OBJECTS:
+      {
+        assert (event->num_buffers > 0);
+        switch (node->command.migrate.type)
+          {
+
+          case ENQUEUE_MIGRATE_TYPE_H2D:
+            tracepoint (pocl_trace, migrate_mem_obj, event->id, status,
+                        dev->dev_id, cq->id, event->num_buffers,
+                        event->mem_objs[0]->id, 0, "H2D");
+            break;
+
+          case ENQUEUE_MIGRATE_TYPE_D2H:
+            tracepoint (pocl_trace, migrate_mem_obj, event->id, status,
+                        dev->dev_id, cq->id, event->num_buffers,
+                        event->mem_objs[0]->id, 0, "D2H");
+            break;
+
+          case ENQUEUE_MIGRATE_TYPE_D2D:
+            tracepoint (pocl_trace, migrate_mem_obj, event->id, status,
+                        dev->dev_id, cq->id, event->num_buffers,
+                        event->mem_objs[0]->id,
+                        node->command.migrate.src_device->id, "D2D");
+            break;
+
+          case ENQUEUE_MIGRATE_TYPE_NOP:
+            tracepoint (pocl_trace, migrate_mem_obj, event->id, status,
+                        dev->dev_id, cq->id, event->num_buffers,
+                        event->mem_objs[0]->id, 0, "NOP");
+            break;
+          }
+        break;
+      }
     }
 }
 

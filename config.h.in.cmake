@@ -92,6 +92,8 @@
 
 #cmakedefine HAVE_LTTNG_UST
 
+#cmakedefine HAVE_LIBXSMM
+
 #cmakedefine HAVE_OCL_ICD
 #cmakedefine HAVE_OCL_ICD_30_COMPATIBLE
 
@@ -175,6 +177,8 @@
 #define LLVM_SPIRV "@LLVM_SPIRV@"
 
 #cmakedefine ENABLE_LEVEL0_EXTRA_FEATURES
+
+#cmakedefine HAVE_LLVM_SPIRV_LIB
 
 #endif
 

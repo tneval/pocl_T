@@ -82,10 +82,16 @@ POP_COMPILER_DIAGS
 #include <map>
 #include <memory>
 #include <regex>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 #include <stdio.h>
+
+#ifdef HAVE_LLVM_SPIRV_LIB
+#include <LLVMSPIRVLib/LLVMSPIRVLib.h>
+#endif
+
 #include "linker.h"
 
 // Enable to get the LLVM pass execution timing report dumped to console after
@@ -194,7 +200,7 @@ llvm::Error PoCLModulePassManager::build(std::string PoclPipeline,
   // devices do not want to vectorize intra work-item at this
   // stage.
   Vectorize = ((CurrentWgMethod == "loopvec" || CurrentWgMethod == "cbs") &&
-               (Dev->spmd == CL_FALSE));
+               (!Dev->spmd));
   PTO.SLPVectorization = Vectorize;
   PTO.LoopVectorization = Vectorize;
   OptimizeLevel = OLevel;
@@ -267,7 +273,6 @@ llvm::Error PoCLModulePassManager::build(std::string PoclPipeline,
 #endif
 
   pocl::registerFunctionAnalyses(PB);
-
   // Register all the basic analyses with the managers.
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
@@ -307,7 +312,7 @@ void PoCLModulePassManager::run(llvm::Module &Bitcode) {
   PM.run(Bitcode, MAM);
 #ifdef SEPARATE_OPTIMIZATION_FROM_POCL_PASSES
   populateModulePM(nullptr, (void *)&Bitcode, OptimizeLevel, SizeLevel,
-                   Vectorize);
+                   Vectorize, Machine.get());
 #endif
 }
 
@@ -511,7 +516,7 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
 
   // NOTE: if you add a new PoCL pass here,
   // don't forget to register it in registerPassBuilderPasses
-  if (Dev->spmd == CL_FALSE) {
+  if (!Dev->spmd) {
     addPass(Passes, "simplifycfg");
     addPass(Passes, "loop-simplify");
 
@@ -731,69 +736,21 @@ public:
 // max captured bytes in output of 'llvm-spirv'
 #define MAX_OUTPUT_BYTES 65536
 
-// shared code for calling llvm-spirv
-static int convertBCorSPV(char *InputPath,
-                          const char *InputContent,
-                          uint64_t InputSize,
-                          std::string *BuildLog,
-                          int useIntelExts,
-                          int reverse, // add "-r"
-                          char *OutputPath,
-                          char **OutContent,
-                          uint64_t *OutSize) {
-  char HiddenOutputPath[POCL_MAX_PATHNAME_LENGTH];
-  char HiddenInputPath[POCL_MAX_PATHNAME_LENGTH];
-
-  char CapturedOutput[MAX_OUTPUT_BYTES];
-  size_t CapturedBytes = MAX_OUTPUT_BYTES;
-  std::vector<std::string> CompilationArgs;
-  std::vector<char *> CompilationArgs2;
-
-  int r = -1;
-
-  bool keepOutputPath = false;
-  if (OutputPath) {
-    keepOutputPath = true;
-    if (OutputPath[0]) {
-      strncpy(HiddenOutputPath, OutputPath, POCL_MAX_PATHNAME_LENGTH);
-    } else {
-      pocl_cache_tempname(HiddenOutputPath, ".spv", NULL);
-      strncpy(OutputPath, HiddenOutputPath, POCL_MAX_PATHNAME_LENGTH);
-    }
-  } else {
-    assert(OutContent);
-    pocl_cache_tempname(HiddenOutputPath, ".spv", NULL);
-  }
-
-  bool keepInputPath = false;
-  if (InputPath) {
-    keepInputPath = true;
-    if (InputPath[0]) {
-      strncpy(HiddenInputPath, InputPath, POCL_MAX_PATHNAME_LENGTH);
-    } else {
-      pocl_cache_tempname(HiddenInputPath, ".bc", NULL);
-      strncpy(InputPath, HiddenInputPath, POCL_MAX_FILENAME_LENGTH);
-    }
-  } else {
-    assert(InputContent);
-    pocl_cache_tempname(HiddenInputPath, ".bc", NULL);
-  }
-
-  if (InputContent && InputSize) {
-    r = pocl_write_file(HiddenInputPath, InputContent, InputSize, 0);
-    if (r != 0) {
-      BuildLog->append("failed to write input file for llvm-spirv\n");
-      goto FINISHED;
-    }
-  }
-
-//   Specify list of allowed/disallowed extensions
-#define ALLOW_INTEL_EXTS                                                       \
+// Specify list of allowed/disallowed extensions
+#define LLVM17_INTEL_EXTS                                                      \
   "--spirv-ext=+SPV_INTEL_subgroups,+SPV_INTEL_usm_storage_classes,+SPV_"      \
   "INTEL_arbitrary_precision_integers,+SPV_INTEL_arbitrary_precision_fixed_"   \
   "point,+SPV_INTEL_arbitrary_precision_floating_point,+SPV_INTEL_kernel_"     \
   "attributes,+SPV_KHR_no_integer_wrap_decoration,+SPV_EXT_shader_atomic_"     \
-  "float_add,+SPV_INTEL_function_pointers"
+  "float_add,+SPV_EXT_shader_atomic_float_min_max,+SPV_INTEL_function_pointers" \
+  ",+SPV_KHR_integer_dot_product"
+
+#if LLVM_MAJOR >= 18
+#define ALLOW_INTEL_EXTS LLVM17_INTEL_EXTS ",+SPV_EXT_shader_atomic_float16_add"
+#else
+#define ALLOW_INTEL_EXTS LLVM17_INTEL_EXTS
+#endif
+
   /*
   possibly useful:
     "+SPV_INTEL_unstructured_loop_controls,"
@@ -836,6 +793,166 @@ static int convertBCorSPV(char *InputPath,
 
 #define ALLOW_EXTS "--spirv-ext=+SPV_KHR_no_integer_wrap_decoration"
 
+// shared code for calling llvm-spirv
+static int convertBCorSPV(char *InputPath,
+                          const char *InputContent, // LLVM bitcode as string
+                          uint64_t InputSize,
+                          std::string *BuildLog,
+                          int useIntelExts,
+                          int reverse, // add "-r"
+                          char *OutputPath,
+                          char **OutContent,
+                          uint64_t *OutSize) {
+  char HiddenOutputPath[POCL_MAX_PATHNAME_LENGTH];
+  char HiddenInputPath[POCL_MAX_PATHNAME_LENGTH];
+  char CapturedOutput[MAX_OUTPUT_BYTES];
+  size_t CapturedBytes = MAX_OUTPUT_BYTES;
+  std::vector<std::string> CompilationArgs;
+  std::vector<char *> CompilationArgs2;
+  llvm::Module *Mod = nullptr;
+  char *Content = nullptr;
+  uint64_t ContentSize = 0;
+  llvm::LLVMContext LLVMCtx;
+
+#ifdef HAVE_LLVM_SPIRV_LIB
+  std::string Errors;
+  SPIRV::TranslatorOpts::ExtensionsStatusMap EnabledExts;
+  if (useIntelExts) {
+    EnabledExts[SPIRV::ExtensionID::SPV_INTEL_subgroups] =
+    EnabledExts[SPIRV::ExtensionID::SPV_INTEL_usm_storage_classes] =
+    EnabledExts[SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_integers] =
+    EnabledExts[SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point] =
+    EnabledExts[SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_floating_point] =
+    EnabledExts[SPIRV::ExtensionID::SPV_INTEL_kernel_attributes] = true;
+  }
+  EnabledExts[SPIRV::ExtensionID::SPV_KHR_integer_dot_product] = true;
+  EnabledExts[SPIRV::ExtensionID::SPV_KHR_no_integer_wrap_decoration] = true;
+  EnabledExts[SPIRV::ExtensionID::SPV_EXT_shader_atomic_float_add] = true;
+  EnabledExts[SPIRV::ExtensionID::SPV_EXT_shader_atomic_float_min_max] = true;
+#if LLVM_MAJOR >= 18
+  EnabledExts[SPIRV::ExtensionID::SPV_EXT_shader_atomic_float16_add] = true;
+#endif
+  SPIRV::TranslatorOpts Opts(SPIRV::VersionNumber::SPIRV_1_3, EnabledExts);
+  Opts.setDesiredBIsRepresentation(SPIRV::BIsRepresentation::OpenCL20);
+#endif
+  int r = -1;
+
+  bool keepOutputPath = false;
+  if (OutputPath) {
+    keepOutputPath = true;
+    if (OutputPath[0]) {
+      strncpy(HiddenOutputPath, OutputPath, POCL_MAX_PATHNAME_LENGTH);
+    } else {
+      pocl_cache_tempname(HiddenOutputPath, (reverse ? ".bc" : ".spv"), NULL);
+      strncpy(OutputPath, HiddenOutputPath, POCL_MAX_PATHNAME_LENGTH);
+    }
+  } else {
+    assert(OutContent);
+    pocl_cache_tempname(HiddenOutputPath, (reverse ? ".bc" : ".spv"), NULL);
+  }
+
+  bool keepInputPath = false;
+  if (InputPath) {
+    keepInputPath = true;
+    if (InputPath[0]) {
+      strncpy(HiddenInputPath, InputPath, POCL_MAX_PATHNAME_LENGTH);
+    } else {
+      pocl_cache_tempname(HiddenInputPath, (reverse ? ".spv" : ".bc"), NULL);
+      strncpy(InputPath, HiddenInputPath, POCL_MAX_PATHNAME_LENGTH);
+    }
+  } else {
+    assert(InputContent);
+    pocl_cache_tempname(HiddenInputPath, (reverse ? ".spv" : ".bc"), NULL);
+  }
+
+  if (InputContent && InputSize) {
+    r = pocl_write_file(HiddenInputPath, InputContent, InputSize, 0);
+    if (r != 0) {
+      BuildLog->append("failed to write input file for llvm-spirv\n");
+      goto FINISHED;
+    }
+  }
+
+#ifdef HAVE_LLVM_SPIRV_LIB
+  if (reverse) {
+    // SPIRV to BC
+    std::string InputS;
+    if (InputContent && InputSize) {
+      InputS.append(InputContent, InputSize);
+    } else {
+      r = pocl_read_file(InputPath, &Content, &ContentSize);
+      if (r != 0) {
+        BuildLog->append("ConvertBC2SPIRV: failed to read input file:\n");
+        BuildLog->append(InputPath);
+        goto FINISHED;
+      }
+      InputS.append(Content, ContentSize);
+      free(Content);
+      Content = nullptr;
+      ContentSize = 0;
+    }
+
+    std::stringstream InputSS(InputS);
+    Mod = nullptr;
+
+    // TODO maybe use context from program ?
+    if (!readSpirv(LLVMCtx, Opts, InputSS, Mod, Errors)) {
+      BuildLog->append("LLVMSPIRVLib: Write failed with errors:\n");
+      BuildLog->append(Errors.c_str());
+      goto FINISHED;
+    }
+    std::string OutputBC;
+    writeModuleIRtoString(Mod, OutputBC);
+    assert(OutputBC.size() > 20);
+    Content = (char *)malloc(OutputBC.size());
+    assert(Content);
+    memcpy(Content, OutputBC.data(), OutputBC.size());
+    ContentSize = OutputBC.size();
+
+  } else {
+    // BC to SPIRV
+    std::stringstream SS;
+    if (InputContent && InputSize) {
+      Mod = parseModuleIRMem(InputContent, InputSize, &LLVMCtx);
+    } else {
+      assert(InputPath);
+      Mod = parseModuleIR(InputPath, &LLVMCtx);
+    }
+    if (Mod == nullptr) {
+      BuildLog->append("ConvertBC2SPIRV: failed to parse input module\n");
+      goto FINISHED;
+    }
+
+    // TODO maybe use context from program ?
+    if (!writeSpirv(Mod, Opts, SS, Errors)) {
+      BuildLog->append("LLVMSPIRVLib: writeSPIRV failed with errors:\n");
+      BuildLog->append(Errors.c_str());
+      goto FINISHED;
+    }
+    SS.flush();
+    std::string OutputSpirv = SS.str();
+    assert(OutputSpirv.size() > 20);
+    Content = (char *)malloc(OutputSpirv.size());
+    assert(Content);
+    memcpy(Content, OutputSpirv.data(), OutputSpirv.size());
+    ContentSize = OutputSpirv.size();
+  }
+
+  if (OutContent && OutSize) {
+    *OutContent = Content;
+    *OutSize = ContentSize;
+  }
+  // write to output file
+  r = pocl_write_file(HiddenOutputPath, Content, ContentSize, 0);
+  if (!(OutContent && OutSize)) {
+    free(Content);
+  }
+  if (r != 0) {
+    BuildLog->append("failed to write output file from LLVMSPIRVLib\n");
+    goto FINISHED;
+  }
+#else
+
   // generate program.spv
   CompilationArgs.push_back(LLVM_SPIRV);
 #if (LLVM_MAJOR == 15) || (LLVM_MAJOR == 16)
@@ -877,6 +994,7 @@ static int convertBCorSPV(char *InputPath,
   }
 
   r = 0;
+#endif
 
 FINISHED:
   if (pocl_get_bool_option("POCL_LEAVE_KERNEL_COMPILER_TEMP_FILES", 0) != 0) {
@@ -1305,6 +1423,27 @@ int pocl_llvm_read_program_llvm_irs(cl_program program, unsigned device_i,
   return CL_SUCCESS;
 }
 
+int pocl_llvm_recalculate_gvar_sizes(cl_program Program, unsigned DeviceI) {
+  std::string ErrLog;
+  std::set<llvm::GlobalVariable *> GVarSet;
+  cl_device_id Dev = Program->devices[DeviceI];
+
+  assert(Program->llvm_irs[DeviceI] != nullptr);
+  llvm::Module *M = (llvm::Module *)Program->llvm_irs[DeviceI];
+  assert(Program->global_var_total_size != nullptr);
+  Program->global_var_total_size[DeviceI] = 0;
+
+  if (!pocl::areAllGvarsDefined(M, ErrLog, GVarSet, Dev->local_as_id)) {
+    POCL_MSG_ERR("Not all GVars are defined: \n%s\n", ErrLog.c_str());
+    return CL_FAILED;
+  }
+  std::map<llvm::GlobalVariable *, uint64_t> GVarOffsets;
+  size_t TotalSize =
+      pocl::calculateGVarOffsetsSizes(M->getDataLayout(), GVarOffsets, GVarSet);
+  Program->global_var_total_size[DeviceI] = TotalSize;
+  return CL_SUCCESS;
+}
+
 void pocl_llvm_free_llvm_irs(cl_program program, unsigned device_i) {
   cl_context ctx = program->context;
   PoclLLVMContextData *llvm_ctx = (PoclLLVMContextData *)ctx->llvm_context_data;
@@ -1437,18 +1576,42 @@ int pocl_llvm_codegen(cl_device_id Device, cl_program program, void *Modp,
 }
 
 void populateModulePM(void *Passes, void *Module, unsigned OptL, unsigned SizeL,
-                      bool Vectorize) {
+                      bool Vectorize, TargetMachine *TM) {
+
+  PipelineTuningOptions PTO;
+
+  // Let the loopvec decide when to unroll.
+  PTO.LoopUnrolling = false;
+#if LLVM_MAJOR > 16
+  PTO.UnifiedLTO = false;
+#endif
+  PTO.SLPVectorization = Vectorize;
+  PTO.LoopVectorization = Vectorize;
+
+#ifdef DEBUG_NEW_PASS_MANAGER
+  PrintPassOptions PrintPassOpts;
+  PassInstrumentationCallbacks PIC;
+  llvm::LLVMContext Context; // for SI
+  std::unique_ptr<StandardInstrumentations> SI;
+  PrintPassOpts.Verbose = true;
+  PrintPassOpts.SkipAnalyses = false;
+  PrintPassOpts.Indent = true;
+  SI.reset(new StandardInstrumentations(Context,
+                                        true,  // debug logging
+                                        false, // verify each
+                                        PrintPassOpts));
+  SI->registerCallbacks(PIC, &MAM);
+
+  PassBuilder PB(TM, PTO, std::nullopt, &PIC);
+#else
+  PassBuilder PB(TM, PTO);
+#endif
+
   // Create the analysis managers.
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
   CGSCCAnalysisManager CGAM;
   ModuleAnalysisManager MAM;
-
-  // Create the new pass manager builder.
-  // Take a look at the PassBuilder constructor parameters for more
-  // customization, e.g. specifying a TargetMachine or various debugging
-  // options.
-  PassBuilder PB;
 
   // Register all the basic analyses with the managers.
   PB.registerModuleAnalyses(MAM);

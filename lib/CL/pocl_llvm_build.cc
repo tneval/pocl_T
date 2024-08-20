@@ -402,6 +402,11 @@ int pocl_llvm_build_program(cl_program program,
       cl_ext += tok.str();
       cl_ext += ",";
     }
+    if (device->image_support == CL_FALSE)  {
+      cl_ext += "-__opencl_c_images,";
+      cl_ext += "-__opencl_c_read_write_images,";
+      cl_ext += "-__opencl_c_3d_image_writes,";
+    }
   }
   if (!cl_ext.empty()) {
     cl_ext.back() = ' '; // replace last "," with space
@@ -561,7 +566,6 @@ int pocl_llvm_build_program(cl_program program,
   std::string KernelH;
   std::string BuiltinRenamesH;
   std::string PoclTypesH;
-  std::string ClangResourceDir;
 
 #ifdef ENABLE_POCL_BUILDING
   if (pocl_get_bool_option("POCL_BUILDING", 0)) {
@@ -573,12 +577,6 @@ int pocl_llvm_build_program(cl_program program,
     char temp[POCL_MAX_PATHNAME_LENGTH];
     pocl_get_private_datadir(temp);
     IncludeRoot = temp;
-#ifdef ENABLE_RELOCATION
-    ClangResourceDir = IncludeRoot;
-#endif
-  }
-  if (ClangResourceDir.empty()) {
-    ClangResourceDir = clang::driver::Driver::GetResourcesPath(CLANG);
   }
   KernelH = IncludeRoot + "/include/_kernel.h";
   BuiltinRenamesH = IncludeRoot + "/include/_builtin_renames.h";
@@ -589,13 +587,11 @@ int pocl_llvm_build_program(cl_program program,
     po.Includes.push_back(BuiltinRenamesH);
   }
   // Use Clang's opencl-c.h header.
-  po.Includes.push_back(ClangResourceDir + "/include/opencl-c-base.h");
-  po.Includes.push_back(ClangResourceDir + "/include/opencl-c.h");
+  po.Includes.push_back(IncludeRoot + "/include/opencl-c-base.h");
+  po.Includes.push_back(IncludeRoot + "/include/opencl-c.h");
 
-  std::string ClangAugmentHeader =
-    IncludeRoot + "/include/_clang_opencl.h";
   if (device->use_only_clang_opencl_headers) {
-    po.Includes.push_back(ClangAugmentHeader);
+    po.Includes.push_back(IncludeRoot + "/include/_clang_opencl.h");
   } else {
     po.Includes.push_back(KernelH);
   }

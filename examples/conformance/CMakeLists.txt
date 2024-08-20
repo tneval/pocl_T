@@ -84,7 +84,7 @@ if(CUSTOM_CTS_GIT_TAG)
   set(CTS_GIT_TAG "${CUSTOM_CTS_GIT_TAG}")
 else()
   # Use PoCL's fork which has pending fixes.
-  set(CTS_GIT_TAG "v2024.06.15")
+  set(CTS_GIT_TAG "v2024.08.09")
 endif()
 
 set(TS_BUILDDIR "${TS_BUILDDIR}/test_conformance")
@@ -681,8 +681,12 @@ add_test(NAME "${TS_NAME}${TS_SUFFIX}_basic_micro_other_ocl_30"
           async_work_group_copy_fence_import_after_export_aliased_global_and_local
           async_work_group_copy_fence_import_after_export_aliased_local wg_barrier
           enqueued_local_size   get_linear_ids  global_linear_id  local_linear_id
-          progvar_func_scope  progvar_prog_scope_init  progvar_prog_scope_misc   progvar_prog_scope_uninit
           rw_image_access_qualifier   simple_read_image_pitch   simple_write_image_pitch    vector_swizzle)
+
+add_test(NAME "${TS_NAME}${TS_SUFFIX}_basic_micro_progvar"
+         COMMAND "${TS_BUILDDIR}/basic/test_basic" ${EXTRA_ARGS}
+         progvar_func_scope  progvar_prog_scope_init  progvar_prog_scope_misc   progvar_prog_scope_uninit)
+
 
 add_test(NAME "${TS_NAME}${TS_SUFFIX}_SVM_micro_1"
          COMMAND "${TS_BUILDDIR}/SVM/test_svm" ${EXTRA_ARGS} svm_byte_granularity  svm_set_kernel_exec_info_svm_ptrs  svm_fine_grain_memory_consistency  svm_fine_grain_sync_buffers  svm_shared_address_space_fine_grain  svm_shared_sub_buffers  svm_shared_address_space_fine_grain_buffers)
@@ -731,8 +735,11 @@ add_test(NAME "${TS_NAME}${TS_SUFFIX}_basic_micro_image"
          COMMAND "${TS_BUILDDIR}/basic/test_basic" ${EXTRA_ARGS} readimage  readimage_int16  readimage_fp32  writeimage  writeimage_int16  writeimage_fp32  image_r8  imagereadwrite  imagereadwrite3d  readimage3d  readimage3d_int16  readimage3d_fp32  imagearraycopy  imagearraycopy3d  imagecopy  imagecopy3d  imagerandomcopy  arrayimagecopy  arrayimagecopy3d  imagenpot  imagedim_pow2  imagedim_non_pow2  image_param  image_multipass_integer_coord  image_multipass_float_coord  enqueue_map_image)
 add_test(NAME "${TS_NAME}${TS_SUFFIX}_basic_micro_other"
          COMMAND "${TS_BUILDDIR}/basic/test_basic" ${EXTRA_ARGS} mri_one  mri_multiple  barrier  createkernelsinprogram  work_item_functions    kernel_call_kernel_function  host_numeric_constants  kernel_numeric_constants  kernel_limit_constants  kernel_preprocessor_macros  parameter_types  vector_creation  vec_type_hint  global_work_offsets  get_global_offset  hostptr    if  sizeof  loop  pointer_cast  local_arg_def  local_kernel_def  local_kernel_scope  constant  constant_source)
-add_test(NAME "${TS_NAME}${TS_SUFFIX}_basic_micro_memory"
-         COMMAND "${TS_BUILDDIR}/basic/test_basic" ${EXTRA_ARGS} vload_global  vload_local  vstore_global  vstore_local   bufferreadwriterect  arrayreadwrite  arraycopy  enqueue_map_buffer   kernel_memory_alignment_local  kernel_memory_alignment_global)
+
+add_test(NAME "${TS_NAME}${TS_SUFFIX}_basic_micro_memory_1"
+         COMMAND "${TS_BUILDDIR}/basic/test_basic" ${EXTRA_ARGS} vload_global  vload_local  vstore_global  vstore_local   arraycopy  enqueue_map_buffer   kernel_memory_alignment_local  kernel_memory_alignment_global)
+add_test(NAME "${TS_NAME}${TS_SUFFIX}_basic_micro_memory_2"
+         COMMAND "${TS_BUILDDIR}/basic/test_basic" ${EXTRA_ARGS} bufferreadwriterect  arrayreadwrite)
 
 add_test(NAME "${TS_NAME}${TS_SUFFIX}_buffers_micro_read_async"
          COMMAND "${TS_BUILDDIR}/buffers/test_buffers" ${EXTRA_ARGS} buffer_read_async_int  buffer_read_async_uint  buffer_read_async_long  buffer_read_async_ulong  buffer_read_async_short  buffer_read_async_ushort  buffer_read_async_char  buffer_read_async_uchar  buffer_read_async_float)
@@ -870,7 +877,7 @@ unset(CTS_MATH_TESTS_MICRO)
 foreach(MATH_FUNC ${MATH_FUNC_LIST})
   list(APPEND CTS_MATH_TESTS_MICRO "${TS_NAME}${TS_SUFFIX}_math_micro_${MATH_FUNC}")
   add_test(NAME "${TS_NAME}${TS_SUFFIX}_math_micro_${MATH_FUNC}"
-           COMMAND "${TS_BUILDDIR}/math_brute_force/test_bruteforce" ${EXTRA_ARGS} --num-worker-threads 1 -4 -w ${MATH_FUNC})
+           COMMAND "${TS_BUILDDIR}/math_brute_force/test_bruteforce" ${EXTRA_ARGS} --num-worker-threads 4 -4 -w ${MATH_FUNC})
 endforeach()
 
 add_test(NAME "${TS_NAME}${TS_SUFFIX}_events_micro"
@@ -886,6 +893,7 @@ add_test(NAME "${TS_NAME}${TS_SUFFIX}_relationals_micro"
 set(OCL_30_TESTS_MICRO
     "${TS_NAME}${TS_SUFFIX}_api_micro_ocl_30"
     "${TS_NAME}${TS_SUFFIX}_basic_micro_other_ocl_30"
+    "${TS_NAME}${TS_SUFFIX}_basic_micro_progvar"
     "${TS_NAME}${TS_SUFFIX}_c11_atomics_micro_1"
     "${TS_NAME}${TS_SUFFIX}_c11_atomics_micro_2"
     "${TS_NAME}${TS_SUFFIX}_c11_atomics_micro_3"
@@ -949,7 +957,8 @@ set(CTS_MICRO_LIST
 
     ${CTS_MATH_TESTS_MICRO}
 
-    "${TS_NAME}${TS_SUFFIX}_basic_micro_memory"
+    "${TS_NAME}${TS_SUFFIX}_basic_micro_memory_1"
+    "${TS_NAME}${TS_SUFFIX}_basic_micro_memory_2"
     "${TS_NAME}${TS_SUFFIX}_basic_micro_other"
 
     "${TS_NAME}${TS_SUFFIX}_conversion_micro_uint_uchar"
@@ -1019,41 +1028,48 @@ endif()
 
 #################################################################################
 
+# List of CTS tests enabled for LevelZero driver
+
 set(CTS_LEVEL0_LIST
-  #conformance_main_api
+  conformance_main_api
   conformance_main_commonfns
-  #conformance_main_computeinfo
+  conformance_main_compiler_micro
+  conformance_main_computeinfo
   conformance_main_contractions
-  #conformance_main_geometrics
-  #conformance_main_images_cl_copy_images
-  #conformance_main_images_cl_fill_images
-  #conformance_main_images_cl_read_write_images
+  conformance_main_geometrics
+  conformance_main_images_cl_copy_images
+  conformance_main_images_cl_fill_images
+  conformance_main_images_cl_read_write_images
   conformance_main_images_cl_get_info
   conformance_main_images_cl_get_info_min
   conformance_main_images_cl_get_info_max
   conformance_main_images_cl_get_info_random
-  #conformance_main_mem_host_flags
+  conformance_main_mem_host_flags
   conformance_main_multiples
   conformance_main_non_uniform_work_group
   conformance_main_printf
   conformance_main_profiling
+  conformance_main_subgroups_micro
   conformance_main_cl_khr_command_buffer
   conformance_main_cl_khr_command_buffer_mutable
-  #conformance_main_api_micro_ocl_30
-  #conformance_main_basic_micro_other_ocl_30
+  conformance_main_api_micro_ocl_30
+  conformance_main_basic_micro_other_ocl_30
+  #conformance_main_basic_micro_progvar
   conformance_main_SVM_micro_1
   conformance_main_SVM_micro_2
 
-  #conformance_main_allocations_micro_buffer
+  conformance_main_allocations_micro_buffer
   conformance_main_allocations_micro_image
 
   conformance_main_integer_ops_micro_ocl_30
-  #conformance_main_generic_AS_micro
+  conformance_main_generic_AS_micro
 
   conformance_main_basic_micro_math
-  #conformance_main_basic_micro_image
+  conformance_main_basic_micro_image
   conformance_main_basic_micro_other
-  #conformance_main_basic_micro_memory
+
+  conformance_main_basic_micro_memory_1
+  #conformance_main_basic_micro_memory_2
 
   conformance_main_buffers_micro_read
   conformance_main_buffers_micro_write
@@ -1070,13 +1086,127 @@ set(CTS_LEVEL0_LIST
   conformance_main_c11_atomics_micro_2
   conformance_main_c11_atomics_micro_3
   conformance_main_c11_atomics_micro_4
+
+  conformance_main_math_micro_acos
+  conformance_main_math_micro_acosh
+  conformance_main_math_micro_acospi
+  conformance_main_math_micro_asin
+  conformance_main_math_micro_asinh
+  conformance_main_math_micro_asinpi
+  conformance_main_math_micro_atan
+  conformance_main_math_micro_atanh
+  conformance_main_math_micro_atanpi
+  conformance_main_math_micro_atan2
+  conformance_main_math_micro_atan2pi
+  conformance_main_math_micro_add
+  conformance_main_math_micro_assignment
+
+  conformance_main_math_micro_cbrt
+  conformance_main_math_micro_ceil
+  conformance_main_math_micro_copysign
+  conformance_main_math_micro_cos
+  conformance_main_math_micro_cosh
+  conformance_main_math_micro_cospi
+
+  conformance_main_math_micro_divide
+  conformance_main_math_micro_divide_cr
+
+  conformance_main_math_micro_exp
+  conformance_main_math_micro_exp2
+  conformance_main_math_micro_exp10
+  conformance_main_math_micro_expm1
+
+  conformance_main_math_micro_fabs
+  conformance_main_math_micro_fdim
+  conformance_main_math_micro_floor
+  conformance_main_math_micro_fma
+  conformance_main_math_micro_fmax
+  conformance_main_math_micro_fmin
+  conformance_main_math_micro_fmod
+  conformance_main_math_micro_fract
+  conformance_main_math_micro_frexp
+
+  conformance_main_math_micro_hypot
+  conformance_main_math_micro_half_cos
+  conformance_main_math_micro_half_divide
+  conformance_main_math_micro_half_exp
+  conformance_main_math_micro_half_exp2
+  conformance_main_math_micro_half_exp10
+  conformance_main_math_micro_half_log
+  conformance_main_math_micro_half_log2
+  conformance_main_math_micro_half_log10
+  conformance_main_math_micro_half_powr
+  conformance_main_math_micro_half_recip
+  conformance_main_math_micro_half_rsqrt
+  conformance_main_math_micro_half_sin
+  conformance_main_math_micro_half_sqrt
+  conformance_main_math_micro_half_tan
+
+  conformance_main_math_micro_ilogb
+  conformance_main_math_micro_isequal
+  conformance_main_math_micro_isfinite
+  conformance_main_math_micro_isgreater
+  conformance_main_math_micro_isgreaterequal
+  conformance_main_math_micro_isinf
+  conformance_main_math_micro_isless
+  conformance_main_math_micro_islessequal
+  conformance_main_math_micro_islessgreater
+  conformance_main_math_micro_isnan
+  conformance_main_math_micro_isnormal
+  conformance_main_math_micro_isnotequal
+  conformance_main_math_micro_isordered
+  conformance_main_math_micro_isunordered
+
+  conformance_main_math_micro_ldexp
+  conformance_main_math_micro_lgamma
+  conformance_main_math_micro_lgamma_r
+  conformance_main_math_micro_log
+  conformance_main_math_micro_log2
+  conformance_main_math_micro_log10
+  conformance_main_math_micro_log1p
+  conformance_main_math_micro_logb
+
+  conformance_main_math_micro_mad
+  conformance_main_math_micro_maxmag
+  conformance_main_math_micro_minmag
+  conformance_main_math_micro_modf
+  conformance_main_math_micro_multiply
+
+  conformance_main_math_micro_nan
+  conformance_main_math_micro_nextafter
+  conformance_main_math_micro_not
+
+  conformance_main_math_micro_pow
+  conformance_main_math_micro_pown
+  conformance_main_math_micro_powr
+
+  conformance_main_math_micro_remainder
+  conformance_main_math_micro_remquo
+  conformance_main_math_micro_rint
+  conformance_main_math_micro_rootn
+  conformance_main_math_micro_round
+  conformance_main_math_micro_rsqrt
+
+  conformance_main_math_micro_signbit
+  conformance_main_math_micro_sin
+  conformance_main_math_micro_sincos
+  conformance_main_math_micro_sinh
+  conformance_main_math_micro_sinpi
+  conformance_main_math_micro_sqrt
+  conformance_main_math_micro_sqrt_cr
+  conformance_main_math_micro_subtract
+
+  conformance_main_math_micro_tan
+  conformance_main_math_micro_tanh
+  conformance_main_math_micro_tanpi
+  conformance_main_math_micro_trunc
 )
 
 if(ENABLE_SPIRV AND HAVE_SPIRV_TOOLS)
-  #"conformance_main_spirv_new_micro_0"
-  #"conformance_main_spirv_new_micro_2"
   list(APPEND CTS_LEVEL0_LIST
-    "conformance_main_spirv_new_micro_1")
+    conformance_main_spirv_new_micro_0
+    conformance_main_spirv_new_micro_1
+    conformance_main_spirv_new_micro_2)
 endif()
 
 foreach(CTSTEST IN LISTS CTS_LEVEL0_LIST)

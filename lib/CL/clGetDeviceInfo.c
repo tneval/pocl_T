@@ -67,6 +67,9 @@ POname(clGetDeviceInfo)(cl_device_id   device,
   POCL_RETURN_ERROR_COND ((*(device->available) == CL_FALSE),
                           CL_DEVICE_NOT_AVAILABLE);
 
+  POCL_MSG_PRINT_INFO ("clGetDeviceInfo query of param %x for %s\n",
+                       param_name, device->short_name);
+
   switch (param_name)
   {
   case CL_DEVICE_IMAGE_SUPPORT:
@@ -197,6 +200,18 @@ POname(clGetDeviceInfo)(cl_device_id   device,
     POCL_RETURN_GETINFO(cl_device_fp_atomic_capabilities_ext,
                         device->half_fp_atomic_caps);
 
+  case CL_DEVICE_INTEGER_DOT_PRODUCT_CAPABILITIES_KHR:
+    POCL_RETURN_GETINFO (cl_device_integer_dot_product_capabilities_khr,
+                         device->dot_product_caps);
+  case CL_DEVICE_INTEGER_DOT_PRODUCT_ACCELERATION_PROPERTIES_8BIT_KHR:
+    POCL_RETURN_GETINFO (
+      cl_device_integer_dot_product_acceleration_properties_khr,
+      device->dot_product_accel_props_8bit);
+  case CL_DEVICE_INTEGER_DOT_PRODUCT_ACCELERATION_PROPERTIES_4x8BIT_PACKED_KHR:
+    POCL_RETURN_GETINFO (
+      cl_device_integer_dot_product_acceleration_properties_khr,
+      device->dot_product_accel_props_4x8bit);
+
   case CL_DEVICE_NAME:
     POCL_RETURN_GETINFO_STR(device->long_name);
    
@@ -231,7 +246,7 @@ POname(clGetDeviceInfo)(cl_device_id   device,
     POCL_RETURN_GETINFO (cl_ulong, device->half_fp_config);
   case CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF       :
     POCL_RETURN_DEVICE_INFO_WITH_EXT_CHECK(cl_uint, device->preferred_vector_width_half, cl_khr_fp16);
-  case CL_DEVICE_HOST_UNIFIED_MEMORY               : 
+  case CL_DEVICE_HOST_UNIFIED_MEMORY:
     POCL_RETURN_GETINFO(cl_bool, device->host_unified_memory);
   case CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR          : 
     POCL_RETURN_DEVICE_INFO_WITH_IMPL_CHECK(cl_uint, device->native_vector_width_char);
@@ -423,6 +438,24 @@ POname(clGetDeviceInfo)(cl_device_id   device,
                                         param_value, param_value_size_ret);
     return CL_SUCCESS; /* gracefully no-op in case the driver fails to handle
                           the query */
+
+  /* cl_khr_device_uuid */
+  case CL_DEVICE_UUID_KHR:
+    POCL_RETURN_GETINFO_ARRAY (cl_uchar, CL_UUID_SIZE_KHR,
+                               device->device_uuid);
+  case CL_DRIVER_UUID_KHR:
+    POCL_RETURN_GETINFO_ARRAY (cl_uchar, CL_UUID_SIZE_KHR,
+                               device->driver_uuid);
+  case CL_DEVICE_LUID_VALID_KHR:
+    POCL_RETURN_GETINFO (cl_bool, device->luid_is_valid);
+  case CL_DEVICE_LUID_KHR:
+    POCL_RETURN_GETINFO_ARRAY (cl_uchar, CL_LUID_SIZE_KHR,
+                               device->device_luid);
+  case CL_DEVICE_NODE_MASK_KHR:
+    POCL_RETURN_GETINFO (cl_uint, device->device_node_mask);
+
+  case CL_DEVICE_PCI_BUS_INFO_KHR:
+    POCL_RETURN_GETINFO (cl_device_pci_bus_info_khr, device->pci_bus_info);
 
   /** cl_intel_unified_shared_memory queries **/
   case CL_DEVICE_HOST_MEM_CAPABILITIES_INTEL:

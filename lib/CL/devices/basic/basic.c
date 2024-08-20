@@ -24,12 +24,12 @@
 */
 
 #include "basic.h"
-#include "builtin_kernels.hh"
 #include "common.h"
 #include "config.h"
 #include "config2.h"
 #include "cpuinfo.h"
 #include "devices.h"
+#include "pocl_builtin_kernels.h"
 #include "pocl_local_size.h"
 #include "pocl_util.h"
 #include "topology/pocl_topology.h"
@@ -121,6 +121,8 @@ pocl_basic_init_device_ops(struct pocl_device_ops *ops)
   ops->build_poclbinary = pocl_driver_build_poclbinary;
   ops->compile_kernel = pocl_basic_compile_kernel;
   ops->build_builtin = pocl_driver_build_opencl_builtins;
+  ops->build_defined_builtin = pocl_cpu_build_defined_builtin;
+  ops->supports_dbk = pocl_cpu_supports_dbk;
 
   ops->join = pocl_basic_join;
   ops->submit = pocl_basic_submit;
@@ -131,6 +133,7 @@ pocl_basic_init_device_ops(struct pocl_device_ops *ops)
   ops->compute_local_size = pocl_default_local_size_optimizer;
 
   ops->get_device_info_ext = pocl_basic_get_device_info_ext;
+  ops->get_subgroup_info_ext = pocl_basic_get_subgroup_info_ext;
   ops->set_kernel_exec_info_ext = pocl_basic_set_kernel_exec_info_ext;
   ops->get_synchronized_timestamps = pocl_driver_get_synchronized_timestamps;
 
@@ -166,6 +169,8 @@ unsigned int
 pocl_basic_probe(struct pocl_device_ops *ops)
 {
   int env_count = pocl_device_get_env_count(ops->device_name);
+
+  pocl_cpu_probe ();
 
   /* for backwards compatibility */
   if (env_count <= 0)
@@ -231,6 +236,18 @@ pocl_basic_run (void *data, _cl_command_node *cmd)
   pocl_kernel_metadata_t *meta = kernel->meta;
   struct pocl_context *pc = &cmd->command.run.pc;
   cl_uint dev_i = cmd->program_device_i;
+
+  if (program->builtin_kernel_attributes)
+    {
+      assert (meta->builtin_kernel_id != 0);
+#ifdef HAVE_LIBXSMM
+      pocl_cpu_execute_dbk (program, kernel, meta, dev_i,
+                            cmd->command.run.arguments);
+#else
+      POCL_MSG_ERR ("PoCL compiled without libxsmm - cannot execute DBK\n");
+#endif
+      return;
+    }
 
   pocl_driver_build_gvar_init_kernel (program, dev_i, cmd->device,
                                       pocl_cpu_gvar_init_callback);
@@ -495,8 +512,13 @@ pocl_basic_submit (_cl_command_node *node, cl_command_queue cq)
 
   if (node != NULL && node->type == CL_COMMAND_NDRANGE_KERNEL)
     {
-      node->command.run.device_data
-        = pocl_check_kernel_dlhandle_cache (node, CL_TRUE, CL_TRUE);
+      cl_kernel kernel = node->command.run.kernel;
+      cl_program program = kernel->program;
+      if (!program->builtin_kernel_attributes)
+        {
+          node->command.run.device_data
+            = pocl_check_kernel_dlhandle_cache (node, CL_TRUE, CL_TRUE);
+        }
     }
 
   node->ready = 1;
@@ -789,6 +811,7 @@ pocl_basic_fill_image (void *data, cl_mem image,
 }
 
 /***************************************************************************/
+
 void
 pocl_basic_svm_free (cl_device_id dev, void *svm_ptr)
 {
@@ -817,7 +840,6 @@ pocl_basic_usm_alloc (cl_device_id dev, unsigned alloc_type,
 
   ptr = pocl_aligned_malloc (MAX_EXTENDED_ALIGNMENT, size);
 
-ERROR:
   if (err_code)
     *err_code = errcode;
 
@@ -850,6 +872,69 @@ pocl_basic_get_device_info_ext (cl_device_id device, cl_device_info param_name,
       POCL_MSG_ERR ("Unknown param_name for get_device_info_ext: %u\n",
                     param_name);
       return CL_INVALID_VALUE;
+    }
+}
+
+cl_int
+pocl_basic_get_subgroup_info_ext (cl_device_id device,
+                                  cl_kernel kernel,
+                                  unsigned program_device_i,
+                                  cl_kernel_sub_group_info param_name,
+                                  size_t input_value_size,
+                                  const void *input_value,
+                                  size_t param_value_size,
+                                  void *param_value,
+                                  size_t *param_value_size_ret)
+{
+  switch (param_name)
+    {
+    case CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE:
+      {
+
+        /* For now assume SG == WG_x. */
+        POCL_RETURN_GETINFO (size_t, ((size_t *)input_value)[0]);
+      }
+    case CL_KERNEL_SUB_GROUP_COUNT_FOR_NDRANGE:
+      {
+        /* For now assume SG == WG_x and thus we have WG_size_y*WG_size_z of
+           them per WG. */
+        POCL_RETURN_GETINFO (
+          size_t,
+          min (device->max_num_sub_groups,
+               (input_value_size > sizeof (size_t) ? ((size_t *)input_value)[1]
+                                                   : 1)
+                 * (input_value_size > sizeof (size_t) * 2
+                      ? ((size_t *)input_value)[2]
+                      : 1)));
+      }
+    case CL_KERNEL_LOCAL_SIZE_FOR_SUB_GROUP_COUNT:
+      {
+        POCL_RETURN_ERROR_ON ((input_value == NULL), CL_INVALID_VALUE,
+                              "SG size wish not given.");
+        size_t n_wish = *(size_t *)input_value;
+        /* For now assume SG == WG_x and the simplest way of looping only at
+           y dimension. Use magic number 32 as the preferred SG size for now.
+         */
+        size_t nd[3];
+        if (n_wish > device->max_num_sub_groups
+            || (n_wish > 1 && param_value_size / sizeof (size_t) == 1))
+          {
+            nd[0] = nd[1] = nd[2] = 0;
+            POCL_RETURN_GETINFO_ARRAY (size_t,
+                                       param_value_size / sizeof (size_t), nd);
+          }
+        else
+          {
+            nd[0] = device->max_work_group_size / n_wish;
+            nd[1] = n_wish;
+            nd[2] = 1;
+            POCL_RETURN_GETINFO_ARRAY (size_t,
+                                       param_value_size / sizeof (size_t), nd);
+          }
+      }
+    default:
+      POCL_RETURN_ERROR_ON (1, CL_INVALID_VALUE, "Unknown param_name: %u\n",
+                            param_name);
     }
 }
 

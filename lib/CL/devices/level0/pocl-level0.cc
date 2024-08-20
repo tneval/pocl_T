@@ -64,14 +64,25 @@ using namespace pocl;
 
 struct PoclL0EventData {
   pocl_cond_t Cond;
+  bool CanBeBatched;
 };
 
 struct PoclL0QueueData {
   pocl_cond_t Cond;
+
+  void getSubmitBatch(BatchType &SubmitBatch);
+  void appendAndGetSubmitBatch(cl_event Ev, BatchType &SubmitBatch,
+                                 size_t BatchSizeLimit);
+  void getSubmitBatchIfFirstEvent(BatchType &SubmitBatch, cl_event Event);
+  void eraseEvent(cl_event Ev);
+
+private:
   // list of event that have been submitted to the runtime, but not yet
   // to the device. They will be split into actual batches
   // in Flush/Notify callbacks
   BatchType UnsubmittedEventList;
+  std::mutex ListLock;
+  void getSubmitBatchUnlocked(BatchType &SubmitBatch);
 };
 
 static void pocl_level0_local_size_optimizer(cl_device_id Dev, cl_kernel Kernel,
@@ -86,7 +97,7 @@ static void pocl_level0_local_size_optimizer(cl_device_id Dev, cl_kernel Kernel,
   uint32_t SuggestedX = 0;
   uint32_t SuggestedY = 0;
   uint32_t SuggestedZ = 0;
-  ze_result_t Res = ZE_RESULT_ERROR_DEVICE_LOST;
+  ze_result_t Res = ZE_RESULT_ERROR_UNSUPPORTED_SIZE;
   if (HKernel != nullptr) {
     Res = zeKernelSuggestGroupSize(HKernel, GlobalX, GlobalY, GlobalZ,
                                    &SuggestedX, &SuggestedY, &SuggestedZ);
@@ -102,6 +113,22 @@ static void pocl_level0_local_size_optimizer(cl_device_id Dev, cl_kernel Kernel,
   }
 }
 
+static int pocl_level0_verify_ndrange_sizes(const size_t *GlobalOffsets,
+                                            const size_t *GlobalWsize,
+                                            const size_t *LocalWsize) {
+  size_t GlobalMax = GlobalWsize[0] | GlobalWsize[1] | GlobalWsize[2];
+  POCL_RETURN_ERROR_ON((GlobalMax > UINT32_MAX), CL_INVALID_GLOBAL_WORK_SIZE,
+                       "Level0 driver does not support "
+                       "Global Work Sizes >32bit \n");
+
+  size_t OffsetMax = GlobalOffsets[0] | GlobalOffsets[1] | GlobalOffsets[2];
+  POCL_RETURN_ERROR_ON((OffsetMax > UINT32_MAX), CL_INVALID_GLOBAL_OFFSET,
+                       "Level0 driver does not support "
+                       "Global Offset Sizes >32bit \n");
+
+  return CL_SUCCESS;
+}
+
 void pocl_level0_init_device_ops(struct pocl_device_ops *Ops) {
   Ops->device_name = "level0";
 
@@ -114,6 +141,7 @@ void pocl_level0_init_device_ops(struct pocl_device_ops *Ops) {
   Ops->free_mapping_ptr = pocl_level0_free_mapping_ptr;
 
   Ops->compute_local_size = pocl_level0_local_size_optimizer;
+  Ops->verify_ndrange_sizes = pocl_level0_verify_ndrange_sizes;
 
   Ops->alloc_mem_obj = pocl_level0_alloc_mem_obj;
   Ops->free = pocl_level0_free;
@@ -159,6 +187,7 @@ void pocl_level0_init_device_ops(struct pocl_device_ops *Ops) {
   Ops->free_sampler = pocl_level0_free_sampler;
 
   Ops->get_device_info_ext = pocl_level0_get_device_info_ext;
+  Ops->get_subgroup_info_ext = pocl_level0_get_subgroup_info_ext;
   Ops->set_kernel_exec_info_ext = pocl_level0_set_kernel_exec_info_ext;
   Ops->get_synchronized_timestamps = pocl_driver_get_synchronized_timestamps;
 }
@@ -458,8 +487,6 @@ int pocl_level0_build_source(cl_program Program, cl_uint DeviceI,
 
   // result of pocl_llvm_build_program
   assert(pocl_exists(ProgramBcPath));
-  // we don't need llvm::Module objects, only the bitcode
-  pocl_llvm_free_llvm_irs(Program, DeviceI);
 
   if (pocl_exists(ProgramSpvPath) != 0) {
     POCL_MSG_PRINT_LEVEL0("Found compiled SPIR-V in cache\n");
@@ -495,8 +522,10 @@ int pocl_level0_build_source(cl_program Program, cl_uint DeviceI,
   assert(Program->program_il_size > 0);
   assert(Program->binaries[DeviceI] != nullptr);
   assert(Program->binary_sizes[DeviceI] > 0);
+  assert(Program->llvm_irs[DeviceI] != nullptr);
 
   if (LinkProgram != 0) {
+    pocl_llvm_recalculate_gvar_sizes(Program, DeviceI);
     return Device->createProgram(Program, DeviceI);
   } else {
     // only final (linked) programs have  ZE module
@@ -620,6 +649,9 @@ int pocl_level0_build_binary(cl_program Program, cl_uint DeviceI,
   assert(Program->binary_sizes[DeviceI] != 0);
 
   if (LinkProgram != 0) {
+    // for Metadata, read the Bitcode into LLVM::Module
+    pocl_llvm_read_program_llvm_irs(Program, DeviceI, ProgramBcPath);
+    pocl_llvm_recalculate_gvar_sizes(Program, DeviceI);
     return Device->createProgram(Program, DeviceI);
   } else {
     // only final (linked) programs have  ZE module
@@ -652,7 +684,15 @@ int pocl_level0_link_program(cl_program Program, cl_uint DeviceI,
     assert(Dev == InputPrograms[I]->devices[DeviceI]);
     POCL_LOCK_OBJ(InputPrograms[I]);
 
+    pocl_cache_program_spv_path(ProgramSpvPath, InputPrograms[I], DeviceI);
+    assert(pocl_exists(ProgramSpvPath));
+    SpvBinaryPaths.push_back(ProgramSpvPath);
+
     char *Spv = (char *)InputPrograms[I]->program_il;
+    if (Spv == nullptr) {
+      readProgramSpv(InputPrograms[I], DeviceI, ProgramSpvPath);
+    }
+    Spv = (char *)InputPrograms[I]->program_il;
     assert(Spv);
     size_t Size = InputPrograms[I]->program_il_size;
     assert(Size);
@@ -663,10 +703,6 @@ int pocl_level0_link_program(cl_program Program, cl_uint DeviceI,
       assert(pocl_exists(ProgramBcPath));
       BcBinaryPaths.push_back(ProgramBcPath);
     }
-
-    pocl_cache_program_spv_path(ProgramSpvPath, InputPrograms[I], DeviceI);
-    assert(pocl_exists(ProgramSpvPath));
-    SpvBinaryPaths.push_back(ProgramSpvPath);
 
     POCL_UNLOCK_OBJ(InputPrograms[I]);
   }
@@ -721,6 +757,9 @@ int pocl_level0_link_program(cl_program Program, cl_uint DeviceI,
   assert(Program->binary_sizes[DeviceI] > 0);
 
   if (CreateLibrary == 0) {
+    // for Metadata, read the Bitcode into LLVM::Module
+    pocl_llvm_read_program_llvm_irs(Program, DeviceI, ProgramBcPath);
+    pocl_llvm_recalculate_gvar_sizes(Program, DeviceI);
     return Device->createProgram(Program, DeviceI);
   } else {
     // only final (linked) programs have  ZE module
@@ -742,7 +781,14 @@ int pocl_level0_free_program(cl_device_id ClDevice, cl_program Program,
 
 int pocl_level0_setup_metadata(cl_device_id Device, cl_program Program,
                                unsigned ProgramDeviceI) {
-  assert(Program->data[ProgramDeviceI] != NULL);
+  assert(Program->data[ProgramDeviceI] != nullptr);
+
+  // using the LLVM::Module as source for metadata gets more reliable info
+  // than SPIR-V parsing. TODO make the SPIR-V parsing work, so we don't have
+  // to use LLVM::Module.
+  if (Program->llvm_irs[ProgramDeviceI] != nullptr) {
+    return pocl_driver_setup_metadata(Device, Program, ProgramDeviceI);
+  }
 
   // TODO this is using program_il as source
   int32_t *Stream = (int32_t *)Program->program_il;
@@ -1018,16 +1064,16 @@ void pocl_level0_notify_cmdq_finished(cl_command_queue Queue) {
 }
 
 void pocl_level0_notify_event_finished(cl_event Event) {
-  pocl_cond_t *EventCond = (pocl_cond_t *)Event->data;
-  POCL_BROADCAST_COND(*EventCond);
+  PoclL0EventData *EvData = (PoclL0EventData *)Event->data;
+  POCL_BROADCAST_COND(EvData->Cond);
 }
 
 void pocl_level0_free_event_data(cl_event Event) {
   if (Event->data == nullptr) {
     return;
   }
-  pocl_cond_t *EventCond = (pocl_cond_t *)Event->data;
-  POCL_DESTROY_COND(*EventCond);
+  PoclL0EventData *EvData = (PoclL0EventData *)Event->data;
+  POCL_DESTROY_COND(EvData->Cond);
   POCL_MEM_FREE(Event->data);
 }
 
@@ -1055,35 +1101,76 @@ static bool pocl_level0_queue_supports_batching(cl_command_queue CQ,
   return true;
 }
 
-static bool pocl_level0_can_event_be_batched(cl_event Ev, cl_event LastEv) {
-  assert(Ev != LastEv);
+static bool pocl_level0_can_event_be_batched(cl_event Ev) {
 
-  // immediately ready event
+  // empty waitlist -> immediately ready event
   if (Ev->wait_list == nullptr)
     return true;
-  // has one event only, and it's the previous in the queue
-  if (Ev->wait_list->event == LastEv && Ev->wait_list->next == nullptr)
-    return true;
 
-  return false;
+  // non-empty waitlist. if it has only one
+  // event in the waitlist, it must be
+  // the previous one (inorder queue)
+  return Ev->wait_list->next == nullptr;
 }
 
-static void pocl_level0_batch_submitted_events(PoclL0QueueData *QD,
-                                               Level0Device *Device,
-                                               BatchType &SubmitBatch) {
-  cl_event LastEv = nullptr;
-  while (!QD->UnsubmittedEventList.empty()) {
-    cl_event Ev = QD->UnsubmittedEventList.front();
-    if (pocl_level0_can_event_be_batched(Ev, LastEv)) {
+void PoclL0QueueData::getSubmitBatch(BatchType &SubmitBatch) {
+  std::lock_guard<std::mutex> ListLockGuard(ListLock);
+  getSubmitBatchUnlocked(SubmitBatch);
+}
+
+void PoclL0QueueData::getSubmitBatchUnlocked(BatchType &SubmitBatch) {
+  if (UnsubmittedEventList.empty())
+    return;
+  cl_event FirstEv = UnsubmittedEventList.front();
+  // first event must be ready to launch = null waitlist
+  if (FirstEv->wait_list != nullptr)
+    return;
+  // if the first event has null waitlist, it's ready to launch
+  SubmitBatch.push_back(FirstEv);
+  UnsubmittedEventList.pop_front();
+
+  while (!UnsubmittedEventList.empty()) {
+    cl_event Ev = UnsubmittedEventList.front();
+    assert(Ev->data);
+    PoclL0EventData *EvData = (PoclL0EventData *)Ev->data;
+    if (EvData->CanBeBatched) {
       SubmitBatch.push_back(Ev);
-      QD->UnsubmittedEventList.pop_front();
-      LastEv = Ev;
+      UnsubmittedEventList.pop_front();
     } else {
       break;
     }
   }
   POCL_MSG_PRINT_LEVEL0("Processing Batch: Submitted %zu || New batch: %zu\n",
-                        QD->UnsubmittedEventList.size(), SubmitBatch.size());
+                        UnsubmittedEventList.size(), SubmitBatch.size());
+}
+
+void PoclL0QueueData::getSubmitBatchIfFirstEvent(BatchType &SubmitBatch,
+                                                 cl_event Event) {
+  std::lock_guard<std::mutex> ListLockGuard(ListLock);
+
+  bool IsFirstEvent =
+      !UnsubmittedEventList.empty() && (Event == UnsubmittedEventList.front());
+  if (!IsFirstEvent)
+    return;
+  getSubmitBatchUnlocked(SubmitBatch);
+}
+
+void PoclL0QueueData::appendAndGetSubmitBatch(cl_event Ev,
+                                                BatchType &SubmitBatch,
+                                                size_t BatchSizeLimit) {
+  std::lock_guard<std::mutex> ListLockGuard(ListLock);
+  UnsubmittedEventList.push_back(Ev);
+  // to limit latency of the first launch, limit the size of the batch
+  if (UnsubmittedEventList.size() >= BatchSizeLimit)
+    getSubmitBatchUnlocked(SubmitBatch);
+}
+
+void PoclL0QueueData::eraseEvent(cl_event Event) {
+  std::lock_guard<std::mutex> ListLockGuard(ListLock);
+  auto It = std::find(UnsubmittedEventList.begin(), UnsubmittedEventList.end(),
+                      Event);
+  if (It != UnsubmittedEventList.end())
+    UnsubmittedEventList.erase(It);
 }
 
 void pocl_level0_flush(cl_device_id ClDev, cl_command_queue Queue) {
@@ -1094,11 +1181,7 @@ void pocl_level0_flush(cl_device_id ClDev, cl_command_queue Queue) {
     return;
 
   BatchType SubmitBatch;
-  POCL_LOCK_OBJ(Queue);
-  if (!QD->UnsubmittedEventList.empty()) {
-    pocl_level0_batch_submitted_events(QD, Device, SubmitBatch);
-  }
-  POCL_UNLOCK_OBJ(Queue);
+  QD->getSubmitBatch(SubmitBatch);
   if (SubmitBatch.empty()) {
     POCL_MSG_PRINT_LEVEL0("FLUSH: SubmitBatch EMPTY\n");
   } else {
@@ -1114,20 +1197,18 @@ void pocl_level0_submit(_cl_command_node *Node, cl_command_queue Queue) {
   cl_event Ev = Node->sync.event.event;
 
   Node->ready = CL_TRUE;
+  assert(Ev->data);
+  PoclL0EventData *EvData = (PoclL0EventData *)Ev->data;
 
   if (pocl_level0_queue_supports_batching(Queue, Device)) {
-    POCL_LOCK_OBJ(Queue);
-    QD->UnsubmittedEventList.push_back(Ev);
-    // to limit latency of the first launch, limit the size of the batch
-    if (QD->UnsubmittedEventList.size() >= BatchSizeLimit) {
-      BatchType SubmitBatch;
-      pocl_level0_batch_submitted_events(QD, Device, SubmitBatch);
-      if (!SubmitBatch.empty())
-        Device->pushCommandBatch(std::move(SubmitBatch));
-    }
-    POCL_UNLOCK_OBJ(Queue);
+    EvData->CanBeBatched = pocl_level0_can_event_be_batched(Ev);
+    BatchType SubmitBatch;
+    QD->appendAndGetSubmitBatch(Ev, SubmitBatch, BatchSizeLimit);
+    if (!SubmitBatch.empty())
+      Device->pushCommandBatch(std::move(SubmitBatch));
   } else {
     // fallback processing for all other events
+    EvData->CanBeBatched = false;
     if (pocl_command_is_ready(Ev) != 0) {
       pocl_update_event_submitted(Ev);
       Device->pushCommand(Node);
@@ -1142,13 +1223,8 @@ void pocl_level0_notify(cl_device_id ClDev, cl_event Event, cl_event Finished) {
 
   if (Finished->status < CL_COMPLETE) {
     // remove the Event from unsubmitted list
-    POCL_LOCK_OBJ(Event->queue);
     PoclL0QueueData *QD = (PoclL0QueueData *)Event->queue->data;
-    auto It = std::find(QD->UnsubmittedEventList.begin(),
-                        QD->UnsubmittedEventList.end(), Event);
-    if (It != QD->UnsubmittedEventList.end())
-      QD->UnsubmittedEventList.erase(It);
-    POCL_UNLOCK_OBJ(Event->queue);
+    QD->eraseEvent(Event);
     pocl_update_event_failed(Event);
     return;
   }
@@ -1160,19 +1236,10 @@ void pocl_level0_notify(cl_device_id ClDev, cl_event Event, cl_event Finished) {
   assert(Event->queue);
   if (pocl_level0_queue_supports_batching(Event->queue, Device)) {
     BatchType SubmitBatch;
-    POCL_LOCK_OBJ(Event->queue);
     PoclL0QueueData *QD = (PoclL0QueueData *)Event->queue->data;
-    bool IsFirstEvent = !QD->UnsubmittedEventList.empty() &&
-                        (Event == QD->UnsubmittedEventList.front());
-    if (IsFirstEvent) {
-      if (!QD->UnsubmittedEventList.empty()) {
-        pocl_level0_batch_submitted_events(QD, Device, SubmitBatch);
-      }
-    }
-    POCL_UNLOCK_OBJ(Event->queue);
-    if (!SubmitBatch.empty()) {
+    QD->getSubmitBatchIfFirstEvent(SubmitBatch, Event);
+    if (!SubmitBatch.empty())
       Device->pushCommandBatch(std::move(SubmitBatch));
-    }
   } else {
     if (Node->ready == CL_TRUE && pocl_command_is_ready(Event) != 0) {
       pocl_update_event_submitted(Event);
@@ -1183,10 +1250,11 @@ void pocl_level0_notify(cl_device_id ClDev, cl_event Event, cl_event Finished) {
 
 void pocl_level0_update_event(cl_device_id ClDevice, cl_event Event) {
   if (Event->data == nullptr) {
-    pocl_cond_t *EventCond = (pocl_cond_t *)malloc(sizeof(pocl_cond_t));
-    assert(EventCond);
-    POCL_INIT_COND(*EventCond);
-    Event->data = (void *)EventCond;
+    PoclL0EventData *EvData = (PoclL0EventData *)malloc(sizeof(PoclL0EventData));
+    assert(EvData);
+    POCL_INIT_COND(EvData->Cond);
+    EvData->CanBeBatched = false;
+    Event->data = (void *)EvData;
   }
   if (Event->status == CL_QUEUED) {
     Event->time_queue = pocl_gettimemono_ns();
@@ -1198,11 +1266,12 @@ void pocl_level0_update_event(cl_device_id ClDevice, cl_event Event) {
 
 void pocl_level0_wait_event(cl_device_id ClDevice, cl_event Event) {
   POCL_MSG_PRINT_LEVEL0("device->wait_event on event %zu\n", Event->id);
-  pocl_cond_t *EventCond = (pocl_cond_t *)Event->data;
+  assert(Event->data);
+  PoclL0EventData *EvData = (PoclL0EventData *)Event->data;
 
   POCL_LOCK_OBJ(Event);
   while (Event->status > CL_COMPLETE) {
-    POCL_WAIT_COND(*EventCond, Event->pocl_lock);
+    POCL_WAIT_COND(EvData->Cond, Event->pocl_lock);
   }
   POCL_UNLOCK_OBJ(Event);
 }
@@ -1234,18 +1303,27 @@ int pocl_level0_alloc_mem_obj(cl_device_id ClDevice, cl_mem Mem, void *HostPtr) 
       (Mem->mem_host_ptr_is_svm != 0)) {
     P->mem_ptr = Mem->mem_host_ptr;
     P->version = Mem->mem_host_ptr_version;
-  } else if (Mem->flags & CL_MEM_DEVICE_ADDRESS_EXT) {
-    // Treat cl_ext_buffer_device_address identically as USM Device.
-    // If we passed an SVM/USM address, we can use it directly in the
-    // previous branch. That should be at least a USM Device allocation.
-    P->mem_ptr = Device->allocSharedMem(Mem->size, 0);
-    P->version = 0;
   } else {
     bool Compress = false;
     if (pocl_get_bool_option("POCL_LEVEL0_COMPRESS", 0)) {
       Compress = (Mem->flags & CL_MEM_READ_ONLY) > 0;
     }
-    Allocation = Device->allocSharedMem(Mem->size, Compress);
+    ze_device_mem_alloc_flags_t DevFlags = ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_CACHED;
+
+    ze_host_mem_alloc_flags_t HostFlags =
+        ZE_HOST_MEM_ALLOC_FLAG_BIAS_CACHED |
+        ZE_HOST_MEM_ALLOC_FLAG_BIAS_WRITE_COMBINED;
+    if (Mem->flags & (CL_MEM_ALLOC_HOST_PTR | CL_MEM_COPY_HOST_PTR |
+                      CL_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE_INTEL))
+      HostFlags |= ZE_HOST_MEM_ALLOC_FLAG_BIAS_INITIAL_PLACEMENT;
+    else
+      DevFlags |= ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_INITIAL_PLACEMENT;
+
+    if (ClDevice->host_unified_memory)
+      Allocation =
+          Device->allocSharedMem(Mem->size, Compress, DevFlags, HostFlags);
+    else
+      Allocation = Device->allocDeviceMem(Mem->size);
     if (Allocation == nullptr) {
       return CL_MEM_OBJECT_ALLOCATION_FAILURE;
     }
@@ -1273,12 +1351,16 @@ int pocl_level0_alloc_mem_obj(cl_device_id ClDevice, cl_mem Mem, void *HostPtr) 
     }
   }
 
-  // since we allocate shared memory, use it for mem_host_ptr
   if (Mem->mem_host_ptr == nullptr) {
-    assert((Mem->flags & CL_MEM_USE_HOST_PTR) == 0);
-    Mem->mem_host_ptr = Allocation;
-    Mem->mem_host_ptr_version = 0;
-    ++Mem->mem_host_ptr_refcount;
+    if (ClDevice->host_unified_memory) {
+      // since we allocate shared memory, use it for mem_host_ptr
+      assert((Mem->flags & CL_MEM_USE_HOST_PTR) == 0);
+      Mem->mem_host_ptr = Allocation;
+      Mem->mem_host_ptr_version = 0;
+      ++Mem->mem_host_ptr_refcount;
+    } else {
+      pocl_alloc_or_retain_mem_host_ptr(Mem);
+    }
   }
 
   POCL_MSG_PRINT_MEMORY("level0 ALLOCATED | MEM_HOST_PTR %p SIZE %zu | "
@@ -1331,13 +1413,9 @@ cl_int pocl_level0_get_mapping_ptr(void *Data, pocl_mem_identifier *MemId,
   /* assume buffer is allocated */
   assert(MemId->mem_ptr != NULL);
 
-  if (Mem->is_image != 0u) {
-    Map->host_ptr = (char *)MemId->mem_ptr + Map->offset;
-  } else if ((Mem->flags & CL_MEM_USE_HOST_PTR) != 0u) {
-    Map->host_ptr = (char *)Mem->mem_host_ptr + Map->offset;
-  } else {
-    Map->host_ptr = (char *)MemId->mem_ptr + Map->offset;
-  }
+  assert(Mem->mem_host_ptr);
+  Map->host_ptr = (char *)Mem->mem_host_ptr + Map->offset;
+
   /* POCL_MSG_ERR ("map HOST_PTR: %p | SIZE %zu | OFFS %zu | DEV PTR: %p \n",
                   map->host_ptr, map->size, map->offset, mem_id->mem_ptr); */
   assert(Map->host_ptr);
@@ -1500,6 +1578,52 @@ cl_int pocl_level0_get_device_info_ext(cl_device_id Dev,
 
   default:
     return CL_INVALID_VALUE;
+  }
+}
+
+cl_int pocl_level0_get_subgroup_info_ext(
+    cl_device_id Dev, cl_kernel Kernel, unsigned ProgramDeviceI,
+    cl_kernel_sub_group_info param_name, size_t input_value_size,
+    const void *input_value, size_t param_value_size,
+    void *param_value, size_t *param_value_size_ret) {
+
+  Level0Device *Device = (Level0Device *)Dev->data;
+  Level0Kernel *L0Kernel = (Level0Kernel *)Kernel->data[ProgramDeviceI];
+  size_t SgSize = Device->getMaxSGSizeForKernel(L0Kernel);
+
+  switch (param_name) {
+  case CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE: {
+    POCL_RETURN_GETINFO(size_t, SgSize);
+  }
+  case CL_KERNEL_SUB_GROUP_COUNT_FOR_NDRANGE: {
+    POCL_RETURN_GETINFO(
+        size_t, std::min((size_t)Dev->max_num_sub_groups,
+                         (size_t)((input_value_size > sizeof(size_t)
+                                       ? ((size_t *)input_value)[1] / SgSize
+                                       : 1) *
+                                  (input_value_size > sizeof(size_t) * 2
+                                       ? ((size_t *)input_value)[2] / SgSize
+                                       : 1))));
+  }
+  case CL_KERNEL_LOCAL_SIZE_FOR_SUB_GROUP_COUNT: {
+    POCL_RETURN_ERROR_ON((input_value == NULL), CL_INVALID_VALUE,
+                         "SG size wish not given.");
+    size_t n_wish = *(size_t *)input_value;
+
+    size_t nd[3];
+    if (n_wish * SgSize > Dev->max_work_group_size) {
+      nd[0] = nd[1] = nd[2] = 0;
+      POCL_RETURN_GETINFO_ARRAY(size_t, param_value_size / sizeof(size_t), nd);
+    } else {
+      nd[0] = n_wish * SgSize;
+      nd[1] = 1;
+      nd[2] = 1;
+      POCL_RETURN_GETINFO_ARRAY(size_t, param_value_size / sizeof(size_t), nd);
+    }
+  }
+  default:
+    POCL_RETURN_ERROR_ON(1, CL_INVALID_VALUE, "Unknown param_name: %u\n",
+                         param_name);
   }
 }
 

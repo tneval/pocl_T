@@ -107,6 +107,7 @@
   int pocl_##__DRV__##_build_binary ( cl_program program,                     \
       cl_uint device_i, int link_program, int spir_build);                    \
   int pocl_##__DRV__##_build_builtin (cl_program program, cl_uint device_i);  \
+  int pocl_##__DRV__##_build_defined_builtin (cl_program program, cl_uint device_i);  \
   int pocl_##__DRV__##_link_program (                                         \
       cl_program program, cl_uint device_i, cl_uint num_input_programs,       \
       const cl_program *input_programs, int create_library);                  \
@@ -120,6 +121,9 @@
       cl_device_id device, cl_program program, unsigned program_device_i);    \
   int pocl_##__DRV__##_supports_binary (                                      \
       cl_device_id device, size_t length, const char *binary);                \
+  int pocl_##__DRV__##_supports_dbk (cl_device_id device,                     \
+                                     BuiltinKernelId kernel_id,               \
+                                     const void *kernel_attributes);          \
   void pocl_##__DRV__##_memfill (void *data, pocl_mem_identifier *dst_mem_id, \
                                  cl_mem dst_buf, size_t size, size_t offset,  \
                                  const void *__restrict__ pattern,            \
@@ -215,7 +219,13 @@
                                          size_t param_value_size,             \
                                          void * param_value,                  \
                                          size_t * param_value_size_ret);      \
-  cl_int pocl_##__DRV__##_set_kernel_exec_info_ext (cl_device_id dev,                        \
+  cl_int pocl_##__DRV__##_get_subgroup_info_ext (cl_device_id dev, cl_kernel kernel, \
+                                         unsigned program_device_i, \
+                                         cl_kernel_sub_group_info param_name, \
+                                         size_t input_value_size, const void *input_value, \
+                                         size_t param_value_size, void *param_value, \
+                                         size_t *param_value_size_ret); \
+cl_int pocl_##__DRV__##_set_kernel_exec_info_ext (cl_device_id dev,          \
                                       unsigned program_device_i, \
                                       cl_kernel kernel,   \
                                       cl_uint param_name,  \

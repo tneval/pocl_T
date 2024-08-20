@@ -27,6 +27,7 @@
 #include "devices.h"
 #include "pocl_cl.h"
 #include "pocl_shared.h"
+#include "pocl_tensor_util.h"
 #include "pocl_util.h"
 
 extern unsigned long buffer_c;
@@ -178,11 +179,11 @@ pocl_create_memobject (cl_context context, cl_mem_flags flags, size_t size,
       mem->latest_version = 1;
     }
 
-  /* If ALLOC flag is present, try to pre-allocate host-visible
+  /* If ALLOC or COPY flag is present, try to pre-allocate host-visible
    * backing store memory from a driver.
    * First driver to allocate for a physical memory wins; if none of
    * the drivers do it, we allocate the backing store via malloc */
-  if (flags & CL_MEM_ALLOC_HOST_PTR)
+  if (flags & (CL_MEM_ALLOC_HOST_PTR | CL_MEM_COPY_HOST_PTR))
     {
       POCL_MSG_PRINT_MEMORY (
           "Trying driver allocation for CL_MEM_ALLOC_HOST_PTR\n");
@@ -231,13 +232,14 @@ pocl_create_memobject (cl_context context, cl_mem_flags flags, size_t size,
               assert (mem->device_ptrs[dev->global_mem_id].mem_ptr == NULL);
               mem->device_ptrs[dev->global_mem_id].mem_ptr = ptr;
             }
-          else if (mem->device_ptrs[dev->global_mem_id].mem_ptr == NULL)
-            {
-              err = dev->ops->alloc_mem_obj (dev, mem, host_ptr);
+          else {
+            if (mem->device_ptrs[dev->global_mem_id].mem_ptr == NULL)
+              {
+                err = dev->ops->alloc_mem_obj (dev, mem, host_ptr);
+                POCL_GOTO_ERROR_ON (err != CL_SUCCESS, CL_OUT_OF_RESOURCES,
+                                    "Out of device memory?");
+              }
               ptr = mem->device_ptrs[dev->global_mem_id].mem_ptr;
-              POCL_GOTO_ERROR_ON (err != CL_SUCCESS, CL_OUT_OF_RESOURCES,
-                                  "Out of device memory?");
-
               pocl_raw_ptr *item = calloc (1, sizeof (pocl_raw_ptr));
               POCL_RETURN_ERROR_ON ((item == NULL), NULL,
                                     "out of host memory\n");
@@ -265,9 +267,7 @@ pocl_create_memobject (cl_context context, cl_mem_flags flags, size_t size,
      do the copy here. */
   if ((flags & CL_MEM_COPY_HOST_PTR) && (mem->mem_host_ptr_version == 0))
     {
-      POCL_GOTO_ERROR_ON ((pocl_alloc_or_retain_mem_host_ptr (mem) != 0),
-                          CL_OUT_OF_HOST_MEMORY,
-                          "Cannot allocate backing memory!\n");
+      assert(mem->mem_host_ptr != NULL);
       memcpy (mem->mem_host_ptr, host_ptr, size);
       mem->mem_host_ptr_version = 1;
       mem->latest_version = 1;
@@ -351,8 +351,46 @@ ERROR:
 
   return mem;
 }
-POsym (clCreateBuffer)
+POsym (clCreateBuffer);
 
+
+
+static cl_int
+pocl_parse_cl_mem_properties (const cl_mem_properties *prop_ptr,
+                              const cl_tensor_desc **tdesc)
+{
+
+  if (!prop_ptr)
+    {
+      return CL_SUCCESS;
+    }
+
+  if (*prop_ptr == 0)
+    {
+      return CL_SUCCESS;
+    }
+
+  while (*prop_ptr)
+    {
+      switch (*prop_ptr)
+        {
+        case CL_MEM_TENSOR:
+          {
+            *tdesc = (const cl_tensor_desc *)prop_ptr[1];
+            prop_ptr += 2; /* = CL_MEM_TENSOR and its value. */
+
+            POCL_RETURN_ERROR_ON ((pocl_check_tensor_desc (*tdesc)),
+                                  CL_INVALID_PROPERTY,
+                                  "invalid tensor description.");
+            return CL_SUCCESS;
+          }
+        default:
+          POCL_RETURN_ERROR_ON (1, CL_INVALID_PROPERTY,
+                                "Unknown cl_mem property %zu", *prop_ptr);
+        }
+    }
+  return CL_OUT_OF_HOST_MEMORY;
+}
 
 CL_API_ENTRY cl_mem CL_API_CALL POname (clCreateBufferWithProperties)(
                                cl_context                context,
@@ -364,22 +402,35 @@ CL_API_ENTRY cl_mem CL_API_CALL POname (clCreateBufferWithProperties)(
 CL_API_SUFFIX__VERSION_3_0
 {
   int errcode;
-  /* pocl doesn't support any extra properties ATM */
-  POCL_GOTO_ERROR_ON ((properties && properties[0] != 0), CL_INVALID_PROPERTY,
-                      "PoCL doesn't support any properties on buffers yet\n");
+  const cl_tensor_desc *tdesc = NULL;
 
-  cl_mem mem_ret = POname(clCreateBuffer) (context, flags, size,
-                                           host_ptr, errcode_ret);
-  if (mem_ret == NULL)
-    return NULL;
-
-  if (properties && properties[0] == 0)
+  errcode = pocl_parse_cl_mem_properties (properties, &tdesc);
+  if (errcode != CL_SUCCESS)
     {
-      mem_ret->num_properties = 1;
-      mem_ret->properties[0] = 0;
+      goto ERROR;
     }
 
-  return mem_ret;
+  cl_mem mem
+    = POname (clCreateBuffer) (context, flags, size, host_ptr, errcode_ret);
+  if (mem == NULL)
+    return NULL;
+
+  /* this is checked by CTS tests */
+  if (properties && properties[0] == 0)
+  {
+    mem->num_properties = 1;
+    mem->properties[0] = 0;
+  }
+  if (tdesc)
+    {
+      mem->num_properties = 1;
+      mem->properties[0] = CL_MEM_TENSOR;
+      POCL_GOTO_ERROR_ON ((pocl_copy_tensor_desc2mem (mem, tdesc)),
+                          CL_OUT_OF_HOST_MEMORY,
+                          "Couldn't allocate space for tensor description.");
+    }
+
+  return mem;
 
 ERROR:
   if (errcode_ret)

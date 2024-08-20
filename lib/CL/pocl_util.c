@@ -1163,9 +1163,8 @@ pocl_command_push (_cl_command_node *node,
 }
 
 static void
-pocl_unmap_command_finished (cl_event event, _cl_command_t *cmd)
+pocl_unmap_command_finished (cl_device_id dev, _cl_command_t *cmd)
 {
-  cl_device_id dev = event->queue->device;
   pocl_mem_identifier *mem_id = NULL;
   cl_mem mem = NULL;
   mem = POCL_MEM_BS (cmd->unmap.buffer);
@@ -1494,20 +1493,14 @@ pocl_device_supports_builtin_kernel (cl_device_id dev, const char *kernel_name)
   if (dev->builtin_kernel_list == NULL)
     return 0;
 
-  char *temp = strdup (dev->builtin_kernel_list);
-  char *token;
-  char *rest = temp;
-
-  while ((token = strtok_r (rest, ";", &rest)))
+  for (unsigned i = 0; i < dev->num_builtin_kernels; ++i)
     {
-      if (strcmp (token, kernel_name) == 0)
+      if (strcmp (dev->builtin_kernels_with_version[i].name, kernel_name) == 0)
         {
-          free (temp);
           return 1;
         }
     }
 
-  free (temp);
   return 0;
 }
 
@@ -2007,9 +2000,8 @@ pocl_update_event_running (cl_event event)
 }
 
 /* Note: this must be kept in sync with pocl_copy_command_node */
-static void pocl_free_event_node (cl_event event)
+static void pocl_free_event_node (_cl_command_node *node)
 {
-  _cl_command_node *node = event->command;
   switch (node->type)
     {
     case CL_COMMAND_NDRANGE_KERNEL:
@@ -2030,7 +2022,7 @@ static void pocl_free_event_node (cl_event event)
       break;
 
     case CL_COMMAND_UNMAP_MEM_OBJECT:
-      pocl_unmap_command_finished (event, &node->command);
+      pocl_unmap_command_finished (node->device, &node->command);
       break;
 
     case CL_COMMAND_SVM_MIGRATE_MEM:
@@ -2043,7 +2035,6 @@ static void pocl_free_event_node (cl_event event)
       break;
     }
   pocl_mem_manager_free_command (node);
-  event->command = NULL;
 }
 
 /**
@@ -2124,6 +2115,8 @@ pocl_update_event_finished (cl_int status, const char *func, unsigned line,
   assert (event->queue != NULL);
   assert (event->status > CL_COMPLETE);
   int notify_cmdq = CL_FALSE;
+  cl_command_buffer_khr command_buffer = NULL;
+  _cl_command_node *node = NULL;
 
   cl_command_queue cq = event->queue;
   POCL_LOCK_OBJ (cq);
@@ -2161,9 +2154,50 @@ pocl_update_event_finished (cl_int status, const char *func, unsigned line,
    * because it calls event callbacks, which can have calls to
    * clEnqueueSomething() */
   pocl_event_updated (event, status);
+  command_buffer = event->command_buffer;
+  node = event->command;
+  event->command = NULL;
   POCL_UNLOCK_OBJ (event);
+
+  /* NOTE: this must be called before we call broadcast.
+   * Reason: pocl_ndrange_node_cleanup releases kernel; broadcast makes the next
+   * event runnable. Assume pocl_ndrange_node_cleanup is not called before
+   * pocl_broadcast; then with this sequence of calls:
+   * clBuildProgram(p)
+   * kernel = clCreateKernel(p)
+   * clEnqueueNDRange(kernel)
+   * clFinish()
+   *   ... pocl_update_event_finished()
+   *      ... pocl_broadcast
+   *      <this cpu thread gets descheduled here, but next events are launched>
+   *      ... pocl_ndrange_node_cleanup
+   * clReleaseKernel(kernel)
+   * clBuildProgram(rebuild the same program again)
+   * ...
+   * since cleanup is still not called at clBuildProgram, this will cause the
+   * clBuildProgram to fail with CL_INVALID_OPERATION(program still has kernels)
+   * this happens with CTS test "compiler", subtests: options_build_macro,
+   * options_build_macro_existence, options_denorm_cache */
+  if (node)
+  {
+    pocl_free_event_node (node);
+  }
+
+  /* NOTE this must be called before we call broadcast, see above */
+  if (event->reset_command_buffer)
+  {
+    assert (command_buffer);
+    POCL_LOCK (command_buffer->mutex);
+    command_buffer->pending -= 1;
+    if (command_buffer->pending == 0)
+        command_buffer->state = CL_COMMAND_BUFFER_STATE_EXECUTABLE_KHR;
+    POCL_UNLOCK (command_buffer->mutex);
+    POname (clReleaseCommandBufferKHR) (command_buffer);
+  }
+
   ops->broadcast (event);
 
+#ifdef ENABLE_REMOTE_CLIENT
   /* With remote being asynchronous it is possible that an event completion
    * signal is received before some of its dependencies. Therefore this event
    * has to be removed from the notify lists of any remaining events in the
@@ -2200,6 +2234,7 @@ pocl_update_event_finished (cl_int status, const char *func, unsigned line,
       POCL_LOCK_OBJ (event);
     }
   POCL_UNLOCK_OBJ (event);
+#endif
 
 #ifdef POCL_DEBUG_MESSAGES
   if (msg != NULL)
@@ -2208,8 +2243,6 @@ pocl_update_event_finished (cl_int status, const char *func, unsigned line,
           func, line, msg, (uint64_t) (event->time_end - event->time_start));
     }
 #endif
-
-  pocl_free_event_node (event);
 
   POCL_LOCK_OBJ (event);
   if (ops->notify_event_finished)
@@ -2532,7 +2565,7 @@ pocl_str_toupper(char *out, const char *in)
 char *
 pocl_strcatdup_v (size_t num_strs, const char **strs)
 {
-  assert (strs || !num_strs && "strs is NULL while num_strs > 0!");
+  assert ((strs || !num_strs) && "strs is NULL while num_strs > 0!");
   switch (num_strs)
     {
     default:
@@ -2696,7 +2729,8 @@ pocl_free_kernel_metadata (cl_program program, unsigned kernel_i)
           meta->data[j] = NULL; // TODO free data in driver callback
         }
   POCL_MEM_FREE (meta->data);
-  POCL_MEM_FREE (meta->local_sizes);
+  if (program->builtin_kernel_names == NULL)
+    POCL_MEM_FREE (meta->local_sizes);
   POCL_MEM_FREE (meta->build_hash);
 }
 
@@ -2757,4 +2791,95 @@ int pocl_svm_check_pointer (cl_context context, const void *svm_ptr,
                             size_t size, size_t *buffer_size)
 {
   return pocl_svm_check_get_pointer(context, svm_ptr, size, buffer_size, NULL);
+}
+
+typedef struct _pocl_event_cb_item pocl_event_cb_item;
+struct _pocl_event_cb_item
+{
+  cl_event event;
+  event_callback_item *list;
+  int status; /* trigger status */
+  pocl_event_cb_item *next;
+};
+
+static pocl_event_cb_item *event_callback_list = NULL;
+static pthread_cond_t event_cb_wake_cond
+  __attribute__ ((aligned (HOST_CPU_CACHELINE_SIZE)));
+static POCL_FAST_LOCK_T event_cb_lock
+  __attribute__ ((aligned (HOST_CPU_CACHELINE_SIZE)));
+static int exit_pocl_event_callback_thread = CL_FALSE;
+static pocl_thread_t event_callback_thread_id = 0;
+
+void
+pocl_event_cb_push (cl_event event, int status)
+{
+  POCL_RETAIN_OBJECT_UNLOCKED (event);
+  POCL_FAST_LOCK (event_cb_lock);
+  pocl_event_cb_item *it = malloc (sizeof (pocl_event_cb_item));
+  it->event = event;
+  it->status = status;
+  LL_APPEND (event_callback_list, it);
+  POCL_SIGNAL_COND (event_cb_wake_cond);
+  POCL_FAST_UNLOCK (event_cb_lock);
+}
+
+void
+pocl_event_callback_finish ()
+{
+  POCL_FAST_LOCK (event_cb_lock);
+  exit_pocl_event_callback_thread = CL_TRUE;
+  POCL_SIGNAL_COND (event_cb_wake_cond);
+  POCL_FAST_UNLOCK (event_cb_lock);
+  if (event_callback_thread_id)
+  POCL_JOIN_THREAD (event_callback_thread_id);
+}
+
+static void *
+pocl_event_callback_thread (void *data)
+{
+  while (exit_pocl_event_callback_thread == CL_FALSE)
+  {
+    POCL_FAST_LOCK (event_cb_lock);
+    /* Event callback handling calls functions in the same order
+       they were added if the status matches the specified one. */
+    pocl_event_cb_item *it = NULL;
+    if (event_callback_list != NULL)
+      {
+      it = event_callback_list;
+      LL_DELETE (event_callback_list, it);
+      }
+    else
+      {
+      POCL_WAIT_COND (event_cb_wake_cond, event_cb_lock);
+      }
+    POCL_FAST_UNLOCK (event_cb_lock);
+
+    if (it)
+      {
+      event_callback_item *cb_ptr = NULL;
+      for (cb_ptr = it->event->callback_list; cb_ptr; cb_ptr = cb_ptr->next)
+            {
+        if (cb_ptr->trigger_status == it->status)
+        {
+          cb_ptr->callback_function (it->event, cb_ptr->trigger_status,
+                                     cb_ptr->user_data);
+        }
+            }
+      POname (clReleaseEvent) (it->event);
+      free (it);
+      }
+  }
+
+  POCL_FAST_DESTROY (event_cb_lock);
+  POCL_DESTROY_COND (event_cb_wake_cond);
+  return NULL;
+}
+
+void
+pocl_event_callback_init ()
+{
+  POCL_FAST_INIT (event_cb_lock);
+  POCL_INIT_COND (event_cb_wake_cond);
+  POCL_CREATE_THREAD (event_callback_thread_id, pocl_event_callback_thread,
+                      NULL);
 }

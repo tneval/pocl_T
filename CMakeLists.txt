@@ -444,22 +444,13 @@ endif()
 
 find_package(PkgConfig MODULE)
 
-if(NOT DEFINED DEFAULT_ENABLE_HWLOC)
-  find_package(Hwloc)
+if(PKG_CONFIG_FOUND)
+  pkg_check_modules(HWLOC IMPORTED_TARGET hwloc>=1.0)
 
-  if(NOT Hwloc_FOUND)
-   message(STATUS "hwloc package not found")
-   set(DEFAULT_ENABLE_HWLOC OFF CACHE INTERNAL "default hwloc")
+  if(NOT HWLOC_FOUND)
+    set(DEFAULT_ENABLE_HWLOC OFF CACHE INTERNAL "default hwloc")
   else()
-     if("${Hwloc_VERSION}" VERSION_LESS "1.0")
-       message(FATAL_ERROR "Hwloc version must be >= 1.0 !")
-     endif()
-
-     message(STATUS "Hwloc_VERSION ${Hwloc_VERSION}")
-     message(STATUS "Hwloc_LIBRARIES ${Hwloc_LIBRARIES}")
-     message(STATUS "Hwloc_INCLUDE_DIRS ${Hwloc_INCLUDE_DIRS}")
-
-     set(DEFAULT_ENABLE_HWLOC ON CACHE INTERNAL "default hwloc")
+    set(DEFAULT_ENABLE_HWLOC ON CACHE INTERNAL "default hwloc")
   endif()
 endif()
 
@@ -812,8 +803,6 @@ endif()
 if(ENABLE_RELOCATION)
   file(RELATIVE_PATH POCL_INSTALL_PRIVATE_DATADIR_REL ${POCL_INSTALL_PUBLIC_LIBDIR} ${POCL_INSTALL_PRIVATE_DATADIR})
   message(STATUS "Private Datadir Relative path: ${POCL_INSTALL_PRIVATE_DATADIR_REL}")
-  install(FILES ${CLANG_OPENCL_HEADERS}
-          DESTINATION "${POCL_INSTALL_PRIVATE_DATADIR}/include" COMPONENT "dev")
 endif()
 
 file(RELATIVE_PATH POCL_INSTALL_PRIVATE_LIBDIR_REL ${POCL_INSTALL_PUBLIC_LIBDIR} ${POCL_INSTALL_PRIVATE_LIBDIR})
@@ -1028,7 +1017,7 @@ if(ENABLE_LTTNG)
     message(FATAL_ERROR "ENABLE_LTTNG enabled, but is only available on Unix")
   endif()
 
-  if(PKG_CONFIG_EXECUTABLE)
+  if(PKG_CONFIG_FOUND)
     pkg_check_modules(LTTNG_UST lttng-ust>=2.7)
   endif()
   if(LTTNG_UST_FOUND)
@@ -1046,6 +1035,29 @@ endif()
 if(ENABLE_RDMA)
   find_package(RDMAcm MODULE REQUIRED)
   find_package(Verbs MODULE REQUIRED)
+endif()
+
+######################################################################################
+
+if(ENABLE_HOST_CPU_DEVICES AND PKG_CONFIG_FOUND AND NOT ENABLE_CONFORMANCE)
+  if(BUILD_SHARED_LIBS)
+    pkg_check_modules(LIBXSMM IMPORTED_TARGET libxsmm-shared>=1.15)
+  endif()
+  if(NOT LIBXSMM_FOUND)
+    pkg_check_modules(LIBXSMM IMPORTED_TARGET libxsmm-static>=1.15)
+  endif()
+
+  # libxsmm needs BLAS as fallback
+  if(LIBXSMM_FOUND)
+    find_package(BLAS)
+  endif()
+endif()
+
+if(LIBXSMM_FOUND AND TARGET BLAS::BLAS)
+  set(HAVE_LIBXSMM 1)
+else()
+  set(HAVE_LIBXSMM 0)
+  message(STATUS "libxsmm or libblas not found, disabled")
 endif()
 
 ######################################################################################
@@ -1319,6 +1331,11 @@ if(NOT ENABLE_CONFORMANCE)
   set(HOST_DEVICE_EXTENSIONS "${HOST_DEVICE_EXTENSIONS} \
       cl_pocl_svm_rect cl_pocl_command_buffer_svm \
       cl_pocl_command_buffer_host_buffer")
+
+  if (HAVE_LIBXSMM)
+    set(HOST_DEVICE_EXTENSIONS "${HOST_DEVICE_EXTENSIONS} \
+      cl_exp_tensor cl_exp_defined_builtin_kernels")
+  endif()
   set(HOST_DEVICE_EXTENSIONS "${HOST_DEVICE_EXTENSIONS} cl_khr_subgroup_ballot \
 cl_khr_subgroup_shuffle cl_intel_subgroups cl_intel_subgroups_short cl_intel_subgroups_char \
 cl_ext_float_atomics cl_intel_required_subgroup_size")
@@ -1766,6 +1783,7 @@ if (ENABLE_LEVEL0)
     set(OCL_DRIVERS "${OCL_DRIVERS} level0")
     set(OCL_TARGETS "${OCL_TARGETS} level0")
   endif()
+
 endif()
 
 ##########################################################
@@ -1794,11 +1812,7 @@ if(ENABLE_CUDA)
     cl_khr_int64_extended_atomics cl_nv_device_attribute_query")
 
   # CUDA device: list of OpenCL 3.0 features that are always enabled
-  # __opencl_c_images should not be included since we don't support images yet,
-  # but is needed to work around an issue with the opencl-c.h header in Clang versions from 14 onwards
-  # https://github.com/llvm/llvm-project/issues/58017
-  # __opencl_c_3d_image_writes and other image-related extensions are disabled because not supported yet
-  set(CUDA_DEVICE_FEATURES_30 "__opencl_c_images __opencl_c_atomic_order_acq_rel __opencl_c_atomic_order_seq_cst \
+  set(CUDA_DEVICE_FEATURES_30 "__opencl_c_atomic_order_acq_rel __opencl_c_atomic_order_seq_cst \
     __opencl_c_atomic_scope_device __opencl_c_program_scope_global_variables \
     __opencl_c_generic_address_space")
 
@@ -2235,6 +2249,7 @@ MESSAGE(STATUS " ")
 
 MESSAGE(STATUS "HAVE_CLOCK_GETTIME: ${HAVE_CLOCK_GETTIME}")
 MESSAGE(STATUS "HAVE_GLEW: ${HAVE_GLEW}")
+MESSAGE(STATUS "HAVE_LIBXSMM: ${HAVE_LIBXSMM}")
 MESSAGE(STATUS "HOST_AS_FLAGS: ${HOST_AS_FLAGS}")
 MESSAGE(STATUS "HOST_CLANG_FLAGS: ${HOST_CLANG_FLAGS}")
 MESSAGE(STATUS "HOST_LD_FLAGS: ${HOST_LD_FLAGS}")

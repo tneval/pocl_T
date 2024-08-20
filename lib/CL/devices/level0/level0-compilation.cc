@@ -183,8 +183,14 @@ bool Level0Program::init() {
                                                           &LinkinSpirvContent,
                                                           &LinkinSpirvSize);
 
-    if (ProgramLLVMCtx == nullptr || LinkinSpirvSize == 0)
+    if (ProgramLLVMCtx == nullptr) {
+      POCL_MSG_ERR("Null ProgramLLVMCtx\n");
       return false;
+    }
+    if (LinkinSpirvSize == 0) {
+      POCL_MSG_ERR("Null LinkinSpirvSize\n");
+      return false;
+    }
 
     LinkinSPIRV.assign((uint8_t *)LinkinSpirvContent,
                        (uint8_t *)LinkinSpirvContent + LinkinSpirvSize);
@@ -1018,8 +1024,8 @@ bool Level0CompilationJobScheduler::init(
 
   JobQueue = std::make_unique<Level0CompilerJobQueue>();
   DriverH = H;
-  unsigned NumThreads = std::thread::hardware_concurrency();
   unsigned NumDevices = DevicesH.size();
+  unsigned NumThreads = std::min((NumDevices * 2), std::thread::hardware_concurrency());
   assert(NumDevices > 0);
   for (unsigned i = 0; i < NumThreads; ++i) {
     ze_device_handle_t PreferredDeviceH = DevicesH[i % NumDevices];

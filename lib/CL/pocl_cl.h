@@ -355,6 +355,7 @@ typedef enum
   POCL_ARG_TYPE_IMAGE = 2,
   POCL_ARG_TYPE_SAMPLER = 3,
   POCL_ARG_TYPE_PIPE = 4,
+  POCL_ARG_TYPE_MUTABLE = 0, /* POD type with mutable size, only used by DBKs */
 } pocl_argument_type;
 
 #define ARG_IS_LOCAL(a) (a.address_qualifier == CL_KERNEL_ARG_ADDRESS_LOCAL)
@@ -362,8 +363,8 @@ typedef enum
 
 /* Kernel argument metadata. */
 typedef struct pocl_argument_info {
-  char* type_name;
-  char* name;
+  char *type_name;
+  char *name;
   cl_kernel_arg_address_qualifier address_qualifier;
   cl_kernel_arg_access_qualifier access_qualifier;
   cl_kernel_arg_type_qualifier type_qualifier;
@@ -737,6 +738,9 @@ struct pocl_device_ops {
   /** Build a program with builtin kernels. */
   int (*build_builtin) (cl_program program, cl_uint device_i);
 
+  /* build a program with defined builtin kernels (DBKs). */
+  int (*build_defined_builtin) (cl_program program, cl_uint device_i);
+
   int (*link_program) (cl_program program, cl_uint device_i,
 
                        cl_uint num_input_programs,
@@ -782,6 +786,16 @@ struct pocl_device_ops {
    * device. */
   int (*supports_binary) (cl_device_id device, const size_t length,
                           const char *binary);
+
+  /* determine DefinedBuiltinKernel support. Driver should examine the
+   * kernel_id and the content of kernel_attributes and return CL_SUCCESS
+   * if it supports the required kernel+attributes combination. If it does not,
+   * it should return an error indicating which attribute is the problem.
+   * Note: the attributes have been already validated by runtime at this point
+   */
+  int (*supports_dbk) (cl_device_id device,
+                       BuiltinKernelId kernel_id,
+                       const void *kernel_attributes);
 
   /** Optional: If the driver needs to use hardware resources
    * for command queues, it should use these callbacks */
@@ -909,6 +923,13 @@ struct pocl_device_ops {
                               size_t global_z, size_t *local_x,
                               size_t *local_y, size_t *local_z);
 
+  /* verifies that the device can run the requested WG sizes/offsets.
+   * better to do this at enqueueNDRange time, than handling
+   * the error later in the driver */
+  int (*verify_ndrange_sizes) (const size_t *global_work_offset,
+                               const size_t *global_work_size,
+                               const size_t *local_work_size);
+
   /** If the device implements an extension that introduces new
    * clGetDeviceInfo() types, it can override this function. */
   cl_int (*get_device_info_ext) (cl_device_id dev,
@@ -917,12 +938,15 @@ struct pocl_device_ops {
                                  void *param_value,
                                  size_t *param_value_size_ret);
 
-  cl_int (*get_mem_info_ext) (cl_device_id dev,
-                              const void *ptr,
-                              cl_uint param_name,
-                              size_t param_value_size,
-                              void *param_value,
-                              size_t *param_value_size_ret);
+  cl_int (*get_subgroup_info_ext) (cl_device_id dev,
+                                   cl_kernel kernel,
+                                   unsigned program_device_i,
+                                   cl_kernel_sub_group_info param_name,
+                                   size_t input_value_size,
+                                   const void *input_value,
+                                   size_t param_value_size,
+                                   void *param_value,
+                                   size_t *param_value_size_ret);
 
   /** If the device implements an extension to the clSetKernelExecInfo,
    * it can override this function. */
@@ -1027,6 +1051,11 @@ struct _cl_device_id {
   cl_device_fp_atomic_capabilities_ext single_fp_atomic_caps;
   cl_device_fp_atomic_capabilities_ext half_fp_atomic_caps;
   cl_device_fp_atomic_capabilities_ext double_fp_atomic_caps;
+  cl_device_integer_dot_product_capabilities_khr dot_product_caps;
+  cl_device_integer_dot_product_acceleration_properties_khr
+    dot_product_accel_props_8bit;
+  cl_device_integer_dot_product_acceleration_properties_khr
+    dot_product_accel_props_4x8bit;
   cl_device_mem_cache_type global_mem_cache_type;
   cl_uint global_mem_cacheline_size;
   cl_ulong global_mem_cache_size;
@@ -1255,6 +1284,16 @@ struct _cl_device_id {
   cl_device_unified_shared_memory_capabilities_intel cross_shared_usm_capabs;
   cl_device_unified_shared_memory_capabilities_intel system_shared_usm_capabs;
 
+  // cl_khr_device_uuid
+  cl_uchar device_uuid[CL_UUID_SIZE_KHR];
+  cl_uchar driver_uuid[CL_UUID_SIZE_KHR];
+  cl_bool luid_is_valid;
+  cl_uint device_node_mask;
+  cl_uchar device_luid[CL_LUID_SIZE_KHR];
+
+  /* cl_khr_pci_bus_info */
+  cl_device_pci_bus_info_khr pci_bus_info;
+
   struct _cl_device_id *next;
 };
 
@@ -1447,6 +1486,9 @@ struct _cl_command_queue {
 
   cl_queue_properties queue_properties[10];
   unsigned num_queue_properties;
+
+  cl_queue_priority_khr priority;
+  cl_queue_throttle_khr throttle;
 
   /* number of user threads (via clFinish) awaiting
    * cmd-queue-finished notification (via ops->notify_cmdq_finished) */
@@ -1692,6 +1734,15 @@ struct _cl_mem {
   cl_bool                 is_pipe;
   size_t                  pipe_packet_size;
   size_t                  pipe_max_packets;
+
+  /* Tensor Properties */
+  cl_uint tensor_rank;
+  cl_tensor_shape tensor_shape[CL_MEM_MAX_TENSOR_RANK];
+  cl_tensor_datatype tensor_dtype;
+  cl_tensor_layout_type tensor_layout_type;
+  void *tensor_layout;
+  // properties
+  char is_tensor;
 };
 
 /** Returns the backing store cl_mem for an image, otherwise the cl_mem
@@ -1744,9 +1795,10 @@ typedef struct pocl_kernel_metadata_s
   /* per-device array of hashes */
   pocl_kernel_hash_t *build_hash;
 
-  /* If this is a BI kernel descriptor, they are statically defined in
-     the custom device driver, thus should not be freed. */
-  cl_bitfield builtin_kernel;
+  /* enum BuiltinKernelId */
+  unsigned builtin_kernel_id;
+  /* only for defined builtin kernels */
+  void *builtin_kernel_attrs;
   /* maximum global work size usable with the kernel.
    * Only applies to builtin kernels */
   size_t_3 builtin_max_global_work;
@@ -1788,8 +1840,13 @@ struct _cl_program {
   /* If this is a program with built-in kernels, this is the list of kernel
      names it contains. */
   size_t num_builtin_kernels;
+  /* Names of builtin kernels, as array of char*,
+   * and also as semicolon-separated string. */
   char **builtin_kernel_names;
   char *concated_builtin_names;
+  // relevant only for DefinedBuiltinKernels:
+  BuiltinKernelId *builtin_kernel_ids;
+  void **builtin_kernel_attributes;
 
   /* Poclcc binary format.  */
   /* per-device poclbinary-format binaries.  */
@@ -1842,6 +1899,7 @@ struct _pocl_ptr_list_node
   void *ptr;
   struct _pocl_ptr_list_node *prev, *next;
 };
+
 
 struct _cl_kernel {
   POCL_ICD_OBJECT
@@ -1972,13 +2030,20 @@ struct _cl_event {
 
   /* The execution status of the command this event is monitoring. */
   cl_int status;
-  /* impicit event = an event for pocl's internal use, not visible to user */
-  short implicit_event;
+  /* implicit event = an event for pocl's internal use, not visible to user */
+  char implicit_event;
+
   /* if set, at the completion of event, the mem_host_ptr_refcount should be
    * lowered and memory freed if it's 0 */
-  short release_mem_host_ptr_after;
+  char release_mem_host_ptr_after;
 
-  short profiling_available;
+  /* for command buffers, profiling info is only available if
+   * profiling is enabled on all queues of the cmdbuffer */
+  char profiling_available;
+
+  /* reset command buffer when the event is finished */
+  char reset_command_buffer;
+  cl_command_buffer_khr command_buffer;
 
   _cl_event *next;
   _cl_event *prev;
