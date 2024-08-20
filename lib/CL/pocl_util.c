@@ -1925,6 +1925,10 @@ pocl_run_command_capture_output (char *capture_string, size_t *captured_bytes,
 void
 pocl_update_event_queued (cl_event event)
 {
+
+  printf("<PoCL> pocl_update_event_queued() begin\n");
+
+
   assert (event != NULL);
 
   event->status = CL_QUEUED;
@@ -1938,12 +1942,17 @@ pocl_update_event_queued (cl_event event)
   if (cq->device->ops->update_event)
     cq->device->ops->update_event (cq->device, event);
   pocl_event_updated (event, CL_QUEUED);
+
+  printf("<PoCL> pocl_update_event_queued() returns\n");
 }
 
 // event locked
 void
 pocl_update_event_submitted (cl_event event)
 {
+  
+  printf("<PoCL> pocl_update_event_submitted() begin\n");
+
   assert (event != NULL);
   assert (event->status == CL_QUEUED);
 
@@ -1958,11 +1967,16 @@ pocl_update_event_submitted (cl_event event)
   if (cq->device->ops->update_event)
     cq->device->ops->update_event (cq->device, event);
   pocl_event_updated (event, CL_SUBMITTED);
+
+  printf("<PoCL> pocl_update_event_submitted() returns\n");
 }
 
 void
 pocl_update_event_running_unlocked (cl_event event)
 {
+
+  printf("<PoCL> pocl_update_event_runnin_unclocked() begin\n");
+
   assert (event != NULL);
   assert (event->status == CL_SUBMITTED);
 
@@ -1977,14 +1991,19 @@ pocl_update_event_running_unlocked (cl_event event)
   if (cq->device->ops->update_event)
     cq->device->ops->update_event (cq->device, event);
   pocl_event_updated (event, CL_RUNNING);
+
+  printf("<PoCL> pocl_update_event_runnin_unclocked() returns\n");
+
 }
 
 void
 pocl_update_event_running (cl_event event)
 {
+  printf("<PoCL> pocl_update_event_runnin() begin\n");
   POCL_LOCK_OBJ (event);
   pocl_update_event_running_unlocked (event);
   POCL_UNLOCK_OBJ (event);
+  printf("<PoCL> pocl_update_event_runnin() returns\n");
 }
 
 /* Note: this must be kept in sync with pocl_copy_command_node */

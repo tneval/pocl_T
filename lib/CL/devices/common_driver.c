@@ -673,6 +673,7 @@ pocl_llvm_convert_and_link_ir (cl_program program, cl_uint device_i,
 
   if (program->binaries[device_i])
     {
+      printf("# program->binaries[device_i]\n");
       int spir_binary
           = pocl_bitcode_is_triple ((char *)program->binaries[device_i],
                               program->binary_sizes[device_i], "spir");
@@ -834,16 +835,20 @@ pocl_driver_build_binary (cl_program program, cl_uint device_i,
   /* poclbinary doesn't need special handling */
   if (program->pocl_binaries[device_i])
     {
+      printf("There is binary\n");
       /* program.bc must be either NULL or unpacked by now */
       if (program->binaries[device_i] == NULL)
         POCL_MSG_WARN ("pocl-binary for this device doesn't contain "
                        "program.bc - you won't be able to rebuild it\n");
       else
+        // Reads llvm bitcode that is in file to a module?
         pocl_llvm_read_program_llvm_irs (program, device_i, NULL);
     }
   else /* has program->binaries or SPIR-V, but not poclbinary */
     {
+      printf("There is no binary\n");
       assert (program->binaries[device_i] || program->program_il);
+      // This converts Spirv bitcode to llvm bitcode?
       int err = pocl_llvm_convert_and_link_ir (program, device_i,
                                                link_builtin_lib, spir_build);
       if (err != CL_SUCCESS)

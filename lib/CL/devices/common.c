@@ -77,6 +77,8 @@
 
 #include "_kernel_constants.h"
 
+#include <stdio.h>
+
 #define WORKGROUP_STRING_LENGTH 1024
 
 /* Object ids are generated from this global. Note: 1 will be the first
@@ -992,6 +994,9 @@ pocl_release_dlhandle_cache (void *dlhandle_cache_item)
 char *
 pocl_check_kernel_disk_cache (_cl_command_node *command, int specialized)
 {
+
+  printf("<PoCL> pocl_check_kernel_disk_cache\n");
+
   char *module_fn = NULL;
   _cl_command_run *run_cmd = &command->command.run;
   cl_kernel k = run_cmd->kernel;
