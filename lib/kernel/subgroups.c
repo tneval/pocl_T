@@ -27,9 +27,10 @@
    intel_reqd_sub_group_size metadata.
  */
 
-#include <math.h>
 
+#include <math.h>
 #include "work_group_alloca.h"
+#include <stdio.h>
 
 size_t _CL_OVERLOADABLE get_local_id (unsigned int dimindx);
 size_t _CL_OVERLOADABLE get_local_linear_id (void);
@@ -173,6 +174,9 @@ _Z19sub_group_broadcastDhj (half val, uint mask)
 }
 
 #endif
+
+  // REMOVED FROM BELOW
+   //printf("---------------------------------------------\n");                  \
 
 #define SUB_GROUP_REDUCE_OT(OPNAME, OPERATION, TYPE)                          \
   __attribute__ ((always_inline))                                             \

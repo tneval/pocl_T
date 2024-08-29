@@ -57,7 +57,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 
 #include "LLVMUtils.h"
 #include "linker.h"
-
+#include <iostream>
 
 using namespace llvm;
 
@@ -367,6 +367,8 @@ using namespace pocl;
 
 int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
          const char **DevAuxFuncs, bool DeviceSidePrintf) {
+
+  std::cout << "<PoCL/llvmopencl> link() -- Links in the built-in kernel library functions." << std::endl;
 
   assert(Program);
   assert(Lib);

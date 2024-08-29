@@ -25,6 +25,7 @@
 #include "pocl_device.h"
 #include "pocl_context.h"
 #include "pocl_types.h"
+#include <stdio.h>
 
 void
 _pocl_finish_all_wgs (uchar *);
@@ -44,6 +45,8 @@ void
 _pocl_run_all_wgs (void *restrict wg_func_ptr, uchar *restrict args,
                    uchar *restrict pcptr, void *d)
 {
+    printf("hel");
+
   struct pocl_context *pc = (struct pocl_context*)pcptr;
   for (size_t gz = 0; gz < pc->num_groups[2]; ++gz)
     for (size_t gy = 0; gy < pc->num_groups[1]; ++gy)

@@ -416,6 +416,9 @@ pocl_cache_write_kernel_parallel_bc (void *bc, cl_program program,
                                      int device_i, cl_kernel kernel,
                                      _cl_command_node *command, int specialize)
 {
+
+  printf("<PoCL/CL> pocal_cache_write_kernel_parallel_bc()\n");
+
   assert (bc);
   char kernel_parallel_path[POCL_MAX_PATHNAME_LENGTH];
   pocl_cache_kernel_cachedir_path (kernel_parallel_path, program, device_i,

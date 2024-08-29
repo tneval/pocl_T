@@ -94,6 +94,10 @@ WORK_GROUP_BROADCAST_T (ulong)
 WORK_GROUP_BROADCAST_T (float)
 WORK_GROUP_BROADCAST_T (double)
 
+
+// Removed from below
+//     printf("----------------WORKGROUP REDUCE----------\n");                   \
+
 #define WORK_GROUP_REDUCE_OT(OPNAME, OPERATION, TYPE)                         \
   __attribute__ ((always_inline))                                             \
   TYPE _CL_OVERLOADABLE work_group_reduce_##OPNAME (TYPE val)                 \
@@ -204,6 +208,7 @@ WORK_GROUP_SCAN_EXCLUSIVE_OT (max, a > b ? a : b, double, -INFINITY)
 __attribute__ ((always_inline)) int _CL_OVERLOADABLE
 work_group_any (int predicate)
 {
+
   /* The results for all of the WIs. */
   int *flags = __pocl_work_group_alloca (
       sizeof (int), ALIGN_ELEMENT_MULTIPLE * sizeof (int), 0);

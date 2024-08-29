@@ -109,6 +109,8 @@ static int
 llvm_codegen (char *output, unsigned device_i, cl_kernel kernel,
               cl_device_id device, _cl_command_node *command, int specialize)
 {
+  printf("<PoCL/Device> llvm_codegen()\n");
+
   POCL_MEASURE_START (llvm_codegen);
   int error = 0;
   void *llvm_module = NULL;

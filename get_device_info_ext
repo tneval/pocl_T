@@ -1,0 +1,681 @@
+doc/sphinx/source/driver_design.rst:   -> can_run_command() -> device->ops->alloc_mem_obj()``).
+doc/sphinx/source/driver_design.rst:      ``device->ops->unmap`` for the EnqueUnmap type command), and then cleanups after the command.
+doc/sphinx/source/driver_design.rst:     * implement the command execution callbacks (device->ops->read etc)
+doc/sphinx/source/driver_design.rst:   also look at other driver's ``ops->init``.
+lib/CL/clCloneKernel.c:      if (device->ops->create_kernel)
+lib/CL/clCloneKernel.c:          int r = device->ops->create_kernel (device, program, kernel, i);
+lib/CL/clCreateBuffer.c:          assert (dev->ops->alloc_mem_obj != NULL);
+lib/CL/clCreateBuffer.c:          int err = dev->ops->alloc_mem_obj (dev, mem, host_ptr);
+lib/CL/clCreateBuffer.c:          assert (dev->ops->alloc_mem_obj != NULL);
+lib/CL/clCreateBuffer.c:                err = dev->ops->alloc_mem_obj (dev, mem, host_ptr);
+lib/CL/clCreateBuffer.c:            dev->ops->free (dev, mem);
+lib/CL/clCreateCommandQueue.c:  if (device->ops->init_queue)
+lib/CL/clCreateCommandQueue.c:    errcode = device->ops->init_queue (device, command_queue);
+lib/CL/clCreateKernel.c:      if (device->ops->create_kernel && *(device->available) == CL_TRUE)
+lib/CL/clCreateKernel.c:          int r = device->ops->create_kernel (device, program, kernel, i);
+lib/CL/clCreateProgramWithBinary.c:          if (device->ops->supports_binary
+lib/CL/clCreateProgramWithBinary.c:              && device->ops->supports_binary (device, lengths[i],
+lib/CL/clCreateProgramWithDefinedBuiltInKernels.c:      if (dev->ops->supports_dbk == NULL)
+lib/CL/clCreateProgramWithDefinedBuiltInKernels.c:          errcode = dev->ops->supports_dbk (dev, kernel_ids[j],
+lib/CL/clCreateProgramWithIL.c:      if (dev->ops->supports_binary == NULL)
+lib/CL/clCreateProgramWithIL.c:      if (dev->ops->supports_binary (dev, length, il))
+lib/CL/clCreateSampler.c:      if (dev->image_support == CL_TRUE && dev->ops->create_sampler)
+lib/CL/clCreateSampler.c:        dev->ops->create_sampler (dev, sampler, dev->dev_id);
+lib/CL/clCreateSubBuffer.c:            = dev->ops->alloc_mem_obj (dev, parent, parent->mem_host_ptr);
+lib/CL/clCreateSubBuffer.c:      if (dev->ops->alloc_subbuffer != NULL)
+lib/CL/clCreateSubBuffer.c:          int ret_val = dev->ops->alloc_subbuffer (dev, mem);
+lib/CL/clCreateSubBuffer.c:          if (p->mem_ptr != NULL && dev->ops->free_subbuffer != NULL)
+lib/CL/clCreateSubBuffer.c:            dev->ops->free_subbuffer (dev, mem);
+lib/CL/clEnqueueCommandBufferKHR.c:  if (num_used_queues == 1 && used_queues[0]->device->ops->run_command_buffer)
+lib/CL/clEnqueueCommandBufferKHR.c:      return used_queues[0]->device->ops->run_command_buffer (
+lib/CL/clEnqueueMapBuffer.c:    errcode = device->ops->alloc_mem_obj (device, buffer, NULL);
+lib/CL/clEnqueueMapBuffer.c:    errcode = device->ops->get_mapping_ptr (device->data, mem_id, buffer,
+lib/CL/clEnqueueMapBuffer.c:        device->ops->free_mapping_ptr (device->data, mem_id, buffer,
+lib/CL/clEnqueueMapImage.c:    errcode = device->ops->alloc_mem_obj (device, image, NULL);
+lib/CL/clEnqueueMapImage.c:    errcode = device->ops->get_mapping_ptr (device->data, mem_id, image,
+lib/CL/clEnqueueMapImage.c:        device->ops->free_mapping_ptr (device->data, mem_id, image,
+lib/CL/clFinalizeCommandBufferKHR.c:      if ((*q)->device->ops->create_finalized_command_buffer)
+lib/CL/clFinalizeCommandBufferKHR.c:        errcode = (*q)->device->ops->create_finalized_command_buffer (
+lib/CL/clFinish.c:  command_queue->device->ops->join(command_queue->device, command_queue);
+lib/CL/clFlush.c:  if(command_queue->device->ops->flush)
+lib/CL/clFlush.c:    command_queue->device->ops->flush (command_queue->device, command_queue);
+lib/CL/clGetDeviceAndHostTimer.c:  if (device->ops->get_synchronized_timestamps)
+lib/CL/clGetDeviceAndHostTimer.c:    return device->ops->get_synchronized_timestamps (device, device_timestamp,
+lib/CL/clGetDeviceInfo.c:      char *hash = device->ops->build_hash(device);
+lib/CL/clGetDeviceInfo.c:    if (device->ops->get_device_info_ext != NULL
+lib/CL/clGetDeviceInfo.c:        && device->ops->get_device_info_ext (device, param_name,
+lib/CL/clGetDeviceInfo.c:    if (device->ops->get_device_info_ext != NULL)
+lib/CL/clGetDeviceInfo.c:      device->ops->get_device_info_ext (device, param_name, param_value_size,
+lib/CL/clGetDeviceInfo.c:  if (device->ops->get_device_info_ext != NULL)
+lib/CL/clGetDeviceInfo.c:      return device->ops->get_device_info_ext (device, param_name,
+lib/CL/clGetGLContextInfoKHR.c:          if (dev->ops->get_gl_context_assoc != NULL
+lib/CL/clGetGLContextInfoKHR.c:              && dev->ops->get_gl_context_assoc (
+lib/CL/clGetGLContextInfoKHR.c:          if (dev->ops->get_gl_context_assoc != NULL
+lib/CL/clGetGLContextInfoKHR.c:              && dev->ops->get_gl_context_assoc (
+lib/CL/clGetHostTimer.c:  if (device->ops->get_synchronized_timestamps)
+lib/CL/clGetHostTimer.c:    return device->ops->get_synchronized_timestamps (device, NULL,
+lib/CL/clGetKernelSubGroupInfo.c:      POCL_RETURN_ERROR_ON ((realdev->ops->get_subgroup_info_ext == NULL),
+lib/CL/clGetKernelSubGroupInfo.c:      return realdev->ops->get_subgroup_info_ext (
+lib/CL/clGetProgramInfo.c:      if (program->associated_devices[assoc_i]->ops->build_poclbinary)
+lib/CL/clGetProgramInfo.c:        program->associated_devices[assoc_i]->ops->build_poclbinary (program,
+lib/CL/clGetProgramInfo.c:      if (program->associated_devices[assoc_i]->ops->build_poclbinary)
+lib/CL/clGetProgramInfo.c:        program->associated_devices[assoc_i]->ops->build_poclbinary (program,
+lib/CL/clMemAllocINTEL.c:      POCL_GOTO_ERROR_ON ((device->ops->usm_alloc == NULL),
+lib/CL/clMemAllocINTEL.c:      = device->ops->usm_alloc (device, alloc_type, flags, size, &errcode);
+lib/CL/clMemFreeINTEL.c:      context->usm_allocdev->ops->usm_free (context->usm_allocdev,
+lib/CL/clMemFreeINTEL.c:      if (context->usm_allocdev->ops->usm_free_blocking)
+lib/CL/clMemFreeINTEL.c:        context->usm_allocdev->ops->usm_free_blocking (context->usm_allocdev,
+lib/CL/clMemFreeINTEL.c:          context->usm_allocdev->ops->usm_free (context->usm_allocdev,
+lib/CL/clReleaseCommandBufferKHR.c:              if (q->device->ops->free_command_buffer)
+lib/CL/clReleaseCommandBufferKHR.c:                errcode = q->device->ops->free_command_buffer (q->device,
+lib/CL/clReleaseCommandQueue.c:      if (command_queue->device->ops->free_queue
+lib/CL/clReleaseCommandQueue.c:        command_queue->device->ops->free_queue (device, command_queue);
+lib/CL/clReleaseContext.c:          if (dev->ops->free_context)
+lib/CL/clReleaseContext.c:            dev->ops->free_context (dev, context);
+lib/CL/clReleaseEvent.c:          && event->queue->device->ops->free_event_data
+lib/CL/clReleaseEvent.c:        event->queue->device->ops->free_event_data(event);
+lib/CL/clReleaseKernel.c:          if (device->ops->free_kernel && (*(device->available) == CL_TRUE))
+lib/CL/clReleaseKernel.c:            device->ops->free_kernel (device, program, kernel, i);
+lib/CL/clReleaseMemObject.c:              dev->ops->free (dev, memobj);
+lib/CL/clReleaseMemObject.c:      if (dev->ops->free_subbuffer != NULL)
+lib/CL/clReleaseMemObject.c:        dev->ops->free_subbuffer (dev, memobj);
+lib/CL/clReleaseProgram.c:          if (device->ops->free_program && *(device->available) == CL_TRUE)
+lib/CL/clReleaseProgram.c:            device->ops->free_program (device, program, i);
+lib/CL/clReleaseSampler.c:          if (dev->image_support == CL_TRUE && dev->ops->free_sampler)
+lib/CL/clReleaseSampler.c:              dev->ops->free_sampler (dev, sampler, dev->dev_id);
+lib/CL/clSVMAlloc.c:  void *ptr = context->svm_allocdev->ops->svm_alloc (context->svm_allocdev,
+lib/CL/clSVMFree.c:  context->svm_allocdev->ops->svm_free (context->svm_allocdev, svm_pointer);
+lib/CL/clSetKernelExecInfo.c:            (realdev->ops->set_kernel_exec_info_ext == NULL),
+lib/CL/clSetKernelExecInfo.c:        return realdev->ops->set_kernel_exec_info_ext (
+lib/CL/clSetKernelExecInfo.c:            (dev->ops->set_kernel_exec_info_ext == NULL), CL_INVALID_OPERATION,
+lib/CL/clSetKernelExecInfo.c:        return dev->ops->set_kernel_exec_info_ext (
+lib/CL/clSetKernelExecInfo.c:                (realdev->ops->set_kernel_exec_info_ext == NULL),
+lib/CL/clSetKernelExecInfo.c:            return realdev->ops->set_kernel_exec_info_ext (
+lib/CL/clWaitForEvents.c:      if (dev->ops->wait_event)
+lib/CL/clWaitForEvents.c:        dev->ops->wait_event (dev, event_list[i]);
+lib/CL/devices/almaif/AlmaifCompile.cc:  dev->ops->build_hash = pocl_almaif_compile_build_hash;
+lib/CL/devices/almaif/AlmaifCompile.cc:  dev->ops->build_source = pocl_driver_build_source;
+lib/CL/devices/almaif/AlmaifCompile.cc:  dev->ops->setup_metadata = pocl_driver_setup_metadata;
+lib/CL/devices/almaif/AlmaifCompile.cc:  dev->ops->create_kernel = pocl_almaif_create_kernel;
+lib/CL/devices/almaif/AlmaifCompile.cc:  dev->ops->free_kernel = pocl_almaif_free_kernel;
+lib/CL/devices/almaif/AlmaifCompile.cc:  dev->ops->build_poclbinary = pocl_driver_build_poclbinary;
+lib/CL/devices/almaif/AlmaifCompile.cc:  dev->ops->build_binary = pocl_almaif_build_binary;
+lib/CL/devices/almaif/AlmaifCompile.cc:  dev->ops->compile_kernel = pocl_almaif_openasip_compile;
+lib/CL/devices/almaif/AlmaifCompile.cc:  dev->ops->init_build = pocl_almaif_openasip_init_build;
+lib/CL/devices/almaif/almaif.cc:  ops->device_name = "almaif";
+lib/CL/devices/almaif/almaif.cc:  ops->init = pocl_almaif_init;
+lib/CL/devices/almaif/almaif.cc:  ops->uninit = pocl_almaif_uninit;
+lib/CL/devices/almaif/almaif.cc:  ops->probe = pocl_almaif_probe;
+lib/CL/devices/almaif/almaif.cc:  ops->build_hash = pocl_almaif_build_hash;
+lib/CL/devices/almaif/almaif.cc:  ops->setup_metadata = pocl_setup_builtin_metadata;
+lib/CL/devices/almaif/almaif.cc:  ops->alloc_mem_obj = pocl_almaif_alloc_mem_obj;
+lib/CL/devices/almaif/almaif.cc:  ops->free = pocl_almaif_free;
+lib/CL/devices/almaif/almaif.cc:  ops->write = pocl_almaif_write;
+lib/CL/devices/almaif/almaif.cc:  ops->read = pocl_almaif_read;
+lib/CL/devices/almaif/almaif.cc:  ops->copy = pocl_almaif_copy;
+lib/CL/devices/almaif/almaif.cc:  ops->map_mem = pocl_almaif_map_mem;
+lib/CL/devices/almaif/almaif.cc:  ops->unmap_mem = pocl_almaif_unmap_mem;
+lib/CL/devices/almaif/almaif.cc:  ops->get_mapping_ptr = pocl_driver_get_mapping_ptr;
+lib/CL/devices/almaif/almaif.cc:  ops->free_mapping_ptr = pocl_driver_free_mapping_ptr;
+lib/CL/devices/almaif/almaif.cc:  ops->submit = pocl_almaif_submit;
+lib/CL/devices/almaif/almaif.cc:  ops->join = pocl_almaif_join;
+lib/CL/devices/almaif/almaif.cc:  ops->notify = pocl_almaif_notify;
+lib/CL/devices/almaif/almaif.cc:  ops->broadcast = pocl_broadcast;
+lib/CL/devices/almaif/almaif.cc:  ops->run = pocl_almaif_run;
+lib/CL/devices/almaif/almaif.cc:  //  ops->update_event = pocl_almaif_update_event;
+lib/CL/devices/almaif/almaif.cc:  ops->free_event_data = pocl_almaif_free_event_data;
+lib/CL/devices/almaif/almaif.cc:  ops->update_event = pocl_almaif_update_event;
+lib/CL/devices/almaif/almaif.cc:  ops->wait_event = pocl_almaif_wait_event;
+lib/CL/devices/almaif/almaif.cc:  ops->notify_event_finished = pocl_almaif_notify_event_finished;
+lib/CL/devices/almaif/almaif.cc:  ops->notify_cmdq_finished = pocl_almaif_notify_cmdq_finished;
+lib/CL/devices/almaif/almaif.cc:  ops->init_queue = pocl_almaif_init_queue;
+lib/CL/devices/almaif/almaif.cc:  ops->free_queue = pocl_almaif_free_queue;
+lib/CL/devices/almaif/almaif.cc:  ops->build_builtin = pocl_almaif_build_builtin;
+lib/CL/devices/almaif/almaif.cc:  ops->free_program = pocl_driver_free_program;
+lib/CL/devices/almaif/almaif.cc:  ops->copy_rect = pocl_almaif_copy_rect;
+lib/CL/devices/almaif/almaif.cc:  ops->read_rect = pocl_almaif_read_rect;
+lib/CL/devices/almaif/almaif.cc:  ops->write_rect = pocl_almaif_write_rect;
+lib/CL/devices/almaif/almaif.cc:  ops->memfill = pocl_almaif_memfill;
+lib/CL/devices/almaif/almaif.cc:  int env_count = pocl_device_get_env_count(ops->device_name);
+lib/CL/devices/basic/basic.c:  ops->device_name = "cpu-minimal";
+lib/CL/devices/basic/basic.c:  ops->probe = pocl_basic_probe;
+lib/CL/devices/basic/basic.c:  ops->uninit = pocl_basic_uninit;
+lib/CL/devices/basic/basic.c:  ops->reinit = pocl_basic_reinit;
+lib/CL/devices/basic/basic.c:  ops->init = pocl_basic_init;
+lib/CL/devices/basic/basic.c:  ops->alloc_mem_obj = pocl_driver_alloc_mem_obj;
+lib/CL/devices/basic/basic.c:  ops->free = pocl_driver_free;
+lib/CL/devices/basic/basic.c:  ops->read = pocl_driver_read;
+lib/CL/devices/basic/basic.c:  ops->read_rect = pocl_driver_read_rect;
+lib/CL/devices/basic/basic.c:  ops->write = pocl_driver_write;
+lib/CL/devices/basic/basic.c:  ops->write_rect = pocl_driver_write_rect;
+lib/CL/devices/basic/basic.c:  ops->copy = pocl_driver_copy;
+lib/CL/devices/basic/basic.c:  ops->copy_with_size = pocl_driver_copy_with_size;
+lib/CL/devices/basic/basic.c:  ops->copy_rect = pocl_driver_copy_rect;
+lib/CL/devices/basic/basic.c:  ops->memfill = pocl_driver_memfill;
+lib/CL/devices/basic/basic.c:  ops->map_mem = pocl_driver_map_mem;
+lib/CL/devices/basic/basic.c:  ops->unmap_mem = pocl_driver_unmap_mem;
+lib/CL/devices/basic/basic.c:  ops->get_mapping_ptr = pocl_driver_get_mapping_ptr;
+lib/CL/devices/basic/basic.c:  ops->free_mapping_ptr = pocl_driver_free_mapping_ptr;
+lib/CL/devices/basic/basic.c:  ops->can_migrate_d2d = NULL;
+lib/CL/devices/basic/basic.c:  ops->migrate_d2d = NULL;
+lib/CL/devices/basic/basic.c:  ops->run = pocl_basic_run;
+lib/CL/devices/basic/basic.c:  ops->run_native = pocl_basic_run_native;
+lib/CL/devices/basic/basic.c:  ops->build_source = pocl_driver_build_source;
+lib/CL/devices/basic/basic.c:  ops->link_program = pocl_driver_link_program;
+lib/CL/devices/basic/basic.c:  ops->build_binary = pocl_driver_build_binary;
+lib/CL/devices/basic/basic.c:  ops->free_program = pocl_basic_free_program;
+lib/CL/devices/basic/basic.c:  ops->setup_metadata = pocl_driver_setup_metadata;
+lib/CL/devices/basic/basic.c:  ops->supports_binary = pocl_driver_supports_binary;
+lib/CL/devices/basic/basic.c:  ops->build_poclbinary = pocl_driver_build_poclbinary;
+lib/CL/devices/basic/basic.c:  ops->compile_kernel = pocl_basic_compile_kernel;
+lib/CL/devices/basic/basic.c:  ops->build_builtin = pocl_driver_build_opencl_builtins;
+lib/CL/devices/basic/basic.c:  ops->build_defined_builtin = pocl_cpu_build_defined_builtin;
+lib/CL/devices/basic/basic.c:  ops->supports_dbk = pocl_cpu_supports_dbk;
+lib/CL/devices/basic/basic.c:  ops->join = pocl_basic_join;
+lib/CL/devices/basic/basic.c:  ops->submit = pocl_basic_submit;
+lib/CL/devices/basic/basic.c:  ops->broadcast = pocl_broadcast;
+lib/CL/devices/basic/basic.c:  ops->notify = pocl_basic_notify;
+lib/CL/devices/basic/basic.c:  ops->flush = pocl_basic_flush;
+lib/CL/devices/basic/basic.c:  ops->build_hash = pocl_cpu_build_hash;
+lib/CL/devices/basic/basic.c:  ops->compute_local_size = pocl_default_local_size_optimizer;
+lib/CL/devices/basic/basic.c:  ops->get_device_info_ext = pocl_basic_get_device_info_ext;
+lib/CL/devices/basic/basic.c:  ops->get_subgroup_info_ext = pocl_basic_get_subgroup_info_ext;
+lib/CL/devices/basic/basic.c:  ops->set_kernel_exec_info_ext = pocl_basic_set_kernel_exec_info_ext;
+lib/CL/devices/basic/basic.c:  ops->get_synchronized_timestamps = pocl_driver_get_synchronized_timestamps;
+lib/CL/devices/basic/basic.c:  ops->svm_free = pocl_basic_svm_free;
+lib/CL/devices/basic/basic.c:  ops->svm_alloc = pocl_basic_svm_alloc;
+lib/CL/devices/basic/basic.c:  ops->usm_alloc = pocl_basic_usm_alloc;
+lib/CL/devices/basic/basic.c:  ops->usm_free = pocl_basic_usm_free;
+lib/CL/devices/basic/basic.c:  ops->usm_free_blocking = NULL;
+lib/CL/devices/basic/basic.c:  ops->svm_map = NULL;
+lib/CL/devices/basic/basic.c:  ops->svm_unmap = NULL;
+lib/CL/devices/basic/basic.c:  ops->svm_advise = NULL;
+lib/CL/devices/basic/basic.c:  ops->svm_migrate = NULL;
+lib/CL/devices/basic/basic.c:  ops->svm_copy = pocl_driver_svm_copy;
+lib/CL/devices/basic/basic.c:  ops->svm_fill = pocl_driver_svm_fill;
+lib/CL/devices/basic/basic.c:  ops->svm_copy_rect = pocl_driver_svm_copy_rect;
+lib/CL/devices/basic/basic.c:  ops->svm_fill_rect = pocl_driver_svm_fill_rect;
+lib/CL/devices/basic/basic.c:  ops->create_kernel = NULL;
+lib/CL/devices/basic/basic.c:  ops->free_kernel = NULL;
+lib/CL/devices/basic/basic.c:  ops->create_sampler = NULL;
+lib/CL/devices/basic/basic.c:  ops->free_sampler = NULL;
+lib/CL/devices/basic/basic.c:  ops->copy_image_rect = pocl_basic_copy_image_rect;
+lib/CL/devices/basic/basic.c:  ops->write_image_rect = pocl_basic_write_image_rect;
+lib/CL/devices/basic/basic.c:  ops->read_image_rect = pocl_basic_read_image_rect;
+lib/CL/devices/basic/basic.c:  ops->map_image = pocl_basic_map_image;
+lib/CL/devices/basic/basic.c:  ops->unmap_image = pocl_basic_unmap_image;
+lib/CL/devices/basic/basic.c:  ops->fill_image = pocl_basic_fill_image;
+lib/CL/devices/basic/basic.c:  int env_count = pocl_device_get_env_count(ops->device_name);
+lib/CL/devices/common.c:      assert (dev->ops->read);
+lib/CL/devices/common.c:      dev->ops->read (
+lib/CL/devices/common.c:      assert (dev->ops->write);
+lib/CL/devices/common.c:      dev->ops->write (
+lib/CL/devices/common.c:      assert (dev->ops->copy);
+lib/CL/devices/common.c:      if (dev->ops->copy_with_size && cmd->copy.src_content_size != NULL)
+lib/CL/devices/common.c:        dev->ops->copy_with_size (
+lib/CL/devices/common.c:        dev->ops->copy (
+lib/CL/devices/common.c:      assert (dev->ops->memfill);
+lib/CL/devices/common.c:      dev->ops->memfill (
+lib/CL/devices/common.c:      assert (dev->ops->read_rect);
+lib/CL/devices/common.c:      dev->ops->read_rect (
+lib/CL/devices/common.c:      assert (dev->ops->copy_rect);
+lib/CL/devices/common.c:      dev->ops->copy_rect (
+lib/CL/devices/common.c:      assert (dev->ops->write_rect);
+lib/CL/devices/common.c:      dev->ops->write_rect (
+lib/CL/devices/common.c:                assert (dev->ops->read_image_rect);
+lib/CL/devices/common.c:                dev->ops->read_image_rect (
+lib/CL/devices/common.c:                assert (dev->ops->read);
+lib/CL/devices/common.c:                dev->ops->read (
+lib/CL/devices/common.c:                assert (dev->ops->write_image_rect);
+lib/CL/devices/common.c:                dev->ops->write_image_rect (
+lib/CL/devices/common.c:                assert (dev->ops->write);
+lib/CL/devices/common.c:                dev->ops->write (
+lib/CL/devices/common.c:            assert (dev->ops->can_migrate_d2d);
+lib/CL/devices/common.c:            assert (dev->ops->migrate_d2d);
+lib/CL/devices/common.c:            dev->ops->migrate_d2d (
+lib/CL/devices/common.c:      assert (dev->ops->map_mem);
+lib/CL/devices/common.c:      dev->ops->map_mem (
+lib/CL/devices/common.c:      assert (dev->ops->read_image_rect);
+lib/CL/devices/common.c:      dev->ops->read_image_rect (
+lib/CL/devices/common.c:      assert (dev->ops->read_image_rect);
+lib/CL/devices/common.c:      dev->ops->read_image_rect (
+lib/CL/devices/common.c:      assert (dev->ops->write_image_rect);
+lib/CL/devices/common.c:      dev->ops->write_image_rect (
+lib/CL/devices/common.c:      assert (dev->ops->write_image_rect);
+lib/CL/devices/common.c:      dev->ops->write_image_rect (
+lib/CL/devices/common.c:      assert (dev->ops->copy_image_rect);
+lib/CL/devices/common.c:      dev->ops->copy_image_rect (
+lib/CL/devices/common.c:      assert (dev->ops->fill_image);
+lib/CL/devices/common.c:      dev->ops->fill_image (
+lib/CL/devices/common.c:      assert (dev->ops->map_image != NULL);
+lib/CL/devices/common.c:      dev->ops->map_image (dev->data,
+lib/CL/devices/common.c:          assert (dev->ops->unmap_mem != NULL);
+lib/CL/devices/common.c:          dev->ops->unmap_mem (
+lib/CL/devices/common.c:          assert (dev->ops->unmap_image != NULL);
+lib/CL/devices/common.c:          dev->ops->unmap_image (
+lib/CL/devices/common.c:      assert (dev->ops->run);
+lib/CL/devices/common.c:      dev->ops->run (dev->data, node);
+lib/CL/devices/common.c:      assert (dev->ops->run_native);
+lib/CL/devices/common.c:      dev->ops->run_native (dev->data, node);
+lib/CL/devices/common.c:            dev->ops->svm_free (dev, ptr);
+lib/CL/devices/common.c:          assert (dev->ops->svm_map);
+lib/CL/devices/common.c:          dev->ops->svm_map (dev, cmd->svm_map.svm_ptr);
+lib/CL/devices/common.c:          assert (dev->ops->svm_unmap);
+lib/CL/devices/common.c:          dev->ops->svm_unmap (dev, cmd->svm_unmap.svm_ptr);
+lib/CL/devices/common.c:      assert (dev->ops->svm_copy);
+lib/CL/devices/common.c:      dev->ops->svm_copy (dev,
+lib/CL/devices/common.c:      assert (dev->ops->svm_fill);
+lib/CL/devices/common.c:      dev->ops->svm_fill (dev,
+lib/CL/devices/common.c:      if (dev->ops->svm_migrate)
+lib/CL/devices/common.c:        dev->ops->svm_migrate (dev, cmd->svm_migrate.num_svm_pointers,
+lib/CL/devices/common.c:      if (dev->ops->svm_advise)
+lib/CL/devices/common.c:        dev->ops->svm_advise (dev, cmd->mem_advise.ptr, cmd->mem_advise.size,
+lib/CL/devices/common.c:      assert (dev->ops->svm_fill_rect);
+lib/CL/devices/common.c:      dev->ops->svm_fill_rect (dev,
+lib/CL/devices/common.c:      assert (dev->ops->svm_copy_rect);
+lib/CL/devices/common.c:      dev->ops->svm_copy_rect (dev,
+lib/CL/devices/common.c:            target->event->command->device->ops->notify (
+lib/CL/devices/common.c:  if (dev->ops->build_builtin == pocl_driver_build_opencl_builtins)
+lib/CL/devices/common_driver.c:  if (svm_dev && svm_dev->global_mem_id == 0 && svm_dev->ops->svm_register)
+lib/CL/devices/common_driver.c:    svm_dev->ops->svm_register (svm_dev, mem->mem_host_ptr, mem->size);
+lib/CL/devices/common_driver.c:  if (svm_dev && svm_dev->global_mem_id == 0 && svm_dev->ops->svm_unregister)
+lib/CL/devices/common_driver.c:    svm_dev->ops->svm_unregister (svm_dev, mem->mem_host_ptr, mem->size);
+lib/CL/devices/common_driver.c: * The driver only has to provide the "device->ops->compile_kernel" callback,
+lib/CL/devices/common_driver.c:      device->ops->compile_kernel (&cmd, kernel, device, 0);
+lib/CL/devices/common_driver.c:          device->ops->compile_kernel (&cmd, kernel, device, 1);
+lib/CL/devices/common_driver.c:      pocl_str_tolower (filename + 1, dev->ops->device_name);
+lib/CL/devices/common_driver.c:* on stack, fills them with data, and calls device->ops->compile_kernel().
+lib/CL/devices/common_driver.c:      device->ops->compile_kernel (&fake_cmd, &fake_kernel, device, 0);
+lib/CL/devices/cpuinfo.c:  device->short_name = device->ops->device_name;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->device_name = "cuda";
+lib/CL/devices/cuda/pocl-cuda.c:  ops->build_hash = pocl_cuda_build_hash;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->probe = pocl_cuda_probe;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->uninit = pocl_cuda_uninit;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->reinit = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->init = pocl_cuda_init;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->init_queue = pocl_cuda_init_queue;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->free_queue = pocl_cuda_free_queue;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->alloc_mem_obj = pocl_cuda_alloc_mem_obj;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->free = pocl_cuda_free;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->submit = pocl_cuda_submit;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->notify = pocl_cuda_notify;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->broadcast = pocl_broadcast;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->wait_event = pocl_cuda_wait_event;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->update_event = pocl_cuda_update_event;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->free_event_data = pocl_cuda_free_event_data;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->join = pocl_cuda_join;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->flush = pocl_cuda_flush;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->init_build = pocl_cuda_init_build;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->notify_event_finished = pocl_cuda_notify_event_finished;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->get_device_info_ext = pocl_cuda_get_device_info_ext;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->set_kernel_exec_info_ext = pocl_cuda_set_kernel_exec_info_ext;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->build_source = pocl_driver_build_source;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->link_program = pocl_driver_link_program;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->build_binary = pocl_driver_build_binary;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->setup_metadata = pocl_driver_setup_metadata;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->supports_binary = pocl_driver_supports_binary;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->build_poclbinary = pocl_driver_build_poclbinary;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->post_build_program = pocl_cuda_post_build_program;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->free_program = pocl_cuda_free_program;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->build_builtin = pocl_cuda_build_builtin;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->compile_kernel = pocl_cuda_compile_kernel;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->create_kernel = pocl_cuda_create_kernel;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->free_kernel = pocl_cuda_free_kernel;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->get_mapping_ptr = pocl_driver_get_mapping_ptr;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->free_mapping_ptr = pocl_driver_free_mapping_ptr;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->can_migrate_d2d = pocl_cuda_can_migrate_d2d;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->migrate_d2d = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->read = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->read_rect = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->write = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->write_rect = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->copy = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->copy_rect = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->map_mem = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->unmap_mem = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->run = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->svm_alloc = pocl_cuda_svm_alloc;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->svm_free = pocl_cuda_svm_free;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->svm_map = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->svm_unmap = NULL;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->svm_copy = pocl_cuda_svm_copy;
+lib/CL/devices/cuda/pocl-cuda.c:  ops->svm_fill = pocl_cuda_svm_fill;
+lib/CL/devices/cuda/pocl-cuda.c:  int env_count = pocl_device_get_env_count (ops->device_name);
+lib/CL/devices/cuda/pocl-cuda.c:  if (strcmp (dest->ops->device_name, source->ops->device_name) == 0)
+lib/CL/devices/cuda/pocl-cuda.c:  pocl_str_tolower (filename + 1, dev->ops->device_name);
+lib/CL/devices/cuda/pocl-cuda.c:              dev->ops->svm_free (dev, ptr);
+lib/CL/devices/devices.c:        if (d->ops->reinit == NULL || d->ops->uninit == NULL)
+lib/CL/devices/devices.c:        cl_int ret = d->ops->uninit (j, d);
+lib/CL/devices/devices.c:        if (d->ops->reinit == NULL || d->ops->uninit == NULL)
+lib/CL/devices/devices.c:        cl_int ret = d->ops->reinit (j, d, getenv (env_name));
+lib/CL/devices/devices.c:          errcode = dev->ops->init (j, dev, getenv (env_name));
+lib/CL/devices/hsa/pocl-hsa.c:  ops->device_name = "hsa";
+lib/CL/devices/hsa/pocl-hsa.c:  ops->probe = pocl_hsa_probe;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->uninit = pocl_hsa_uninit;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->reinit = pocl_hsa_reinit;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->init = pocl_hsa_init;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->alloc_mem_obj = pocl_hsa_alloc_mem_obj;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->free = pocl_hsa_free;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->run = NULL;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->read = pocl_driver_read;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->read_rect = pocl_driver_read_rect;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->write = pocl_driver_write;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->write_rect = pocl_driver_write_rect;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->map_mem = pocl_driver_map_mem;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->unmap_mem = pocl_driver_unmap_mem;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->get_mapping_ptr = pocl_driver_get_mapping_ptr;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->free_mapping_ptr = pocl_driver_free_mapping_ptr;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->memfill = pocl_driver_memfill;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->copy = pocl_hsa_copy;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->copy_rect = pocl_driver_copy_rect;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->compute_local_size = pocl_default_local_size_optimizer;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->get_device_info_ext = NULL;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->svm_free = pocl_hsa_svm_free;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->svm_alloc = pocl_hsa_svm_alloc;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->svm_copy = pocl_hsa_svm_copy;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->svm_fill = pocl_driver_svm_fill;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->svm_register = pocl_hsa_svm_register;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->svm_unregister = pocl_hsa_svm_unregister;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->submit = pocl_hsa_submit;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->join = pocl_hsa_join;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->flush = pocl_hsa_flush;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->notify = pocl_hsa_notify;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->broadcast = pocl_hsa_broadcast;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->wait_event = pocl_hsa_wait_event;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->build_source = pocl_driver_build_source;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->link_program = pocl_driver_link_program;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->build_binary = pocl_driver_build_binary;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->free_program = pocl_driver_free_program;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->setup_metadata = pocl_driver_setup_metadata;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->supports_binary = pocl_driver_supports_binary;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->build_poclbinary = pocl_driver_build_poclbinary;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->compile_kernel = pocl_hsa_compile_kernel_hsail;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->compile_kernel = pocl_hsa_compile_kernel_native;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->update_event = pocl_hsa_update_event;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->notify_event_finished = pocl_hsa_notify_event_finished;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->free_event_data = pocl_hsa_free_event_data;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->init_target_machine = NULL;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->wait_event = pocl_hsa_wait_event;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->build_hash = pocl_hsa_build_hash;
+lib/CL/devices/hsa/pocl-hsa.c:  ops->init_build = pocl_hsa_init_build;
+lib/CL/devices/hsa/pocl-hsa.c:  int env_count = pocl_device_get_env_count (ops->device_name);
+lib/CL/devices/hsa/pocl-hsa.c:                       ops->device_name);
+lib/CL/devices/hsa/pocl-hsa.c:    dev->ops->compute_local_size = pocl_wg_utilization_maximizer;
+lib/CL/devices/hsa/pocl-hsa.c:          d->device->ops->compile_kernel (
+lib/CL/devices/level0/level0-compilation.hh:  /// DISABLED: used by device->ops->setup_metadata to get kernel metadata
+lib/CL/devices/level0/level0-driver.cc:      assert(dev->ops->can_migrate_d2d);
+lib/CL/devices/level0/level0-driver.cc:      assert(dev->ops->migrate_d2d);
+lib/CL/devices/level0/level0-driver.cc:      dev->ops->migrate_d2d(
+lib/CL/devices/level0/level0-driver.cc:        dev->ops->svm_free(dev, ptr);
+lib/CL/devices/level0/pocl-level0.cc:  /* ops->get_timer_value = pocl_level0_get_timer_value; */
+lib/CL/devices/proxy/pocl_proxy.c:  ops->device_name = proxy_device_name;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->probe = pocl_proxy_probe;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->init = pocl_proxy_init;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->uninit = pocl_proxy_uninit;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->reinit = pocl_proxy_reinit;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->alloc_mem_obj = pocl_proxy_alloc_mem_obj;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->free = pocl_proxy_free;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->can_migrate_d2d = pocl_proxy_can_migrate_d2d;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->get_mapping_ptr = pocl_driver_get_mapping_ptr;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->free_mapping_ptr = pocl_driver_free_mapping_ptr;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->create_kernel = pocl_proxy_create_kernel;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->free_kernel = pocl_proxy_free_kernel;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->init_queue = pocl_proxy_init_queue;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->free_queue = pocl_proxy_free_queue;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->init_context = pocl_proxy_init_context;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->free_context = pocl_proxy_free_context;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->build_source = pocl_proxy_build_source;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->link_program = pocl_proxy_link_program;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->build_binary = pocl_proxy_build_binary;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->free_program = pocl_proxy_free_program;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->setup_metadata = pocl_proxy_setup_metadata;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->supports_binary = NULL;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->join = pocl_proxy_join;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->submit = pocl_proxy_submit;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->broadcast = pocl_broadcast;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->notify = pocl_proxy_notify;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->flush = pocl_proxy_flush;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->wait_event = pocl_proxy_wait_event;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->free_event_data = pocl_proxy_free_event_data;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->notify_cmdq_finished = pocl_proxy_notify_cmdq_finished;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->notify_event_finished = pocl_proxy_notify_event_finished;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->build_hash = pocl_proxy_build_hash;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->create_sampler = pocl_proxy_create_sampler;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->free_sampler = pocl_proxy_free_sampler;
+lib/CL/devices/proxy/pocl_proxy.c:  ops->get_gl_context_assoc = pocl_proxy_get_gl_context_assoc;
+lib/CL/devices/proxy/pocl_proxy.c:  int env_count = pocl_device_get_env_count (ops->device_name);
+lib/CL/devices/proxy/pocl_proxy.c:  char *dev_hash = device->ops->build_hash (device);
+lib/CL/devices/proxy/pocl_proxy.c:    return ((strncmp (dest->ops->device_name, proxy_device_name, 7) == 0)
+lib/CL/devices/proxy/pocl_proxy.c:            && (strncmp (source->ops->device_name, proxy_device_name, 7) == 0)
+lib/CL/devices/pthread/pthread.c:  ops->device_name = "cpu";
+lib/CL/devices/pthread/pthread.c:  ops->probe = pocl_pthread_probe;
+lib/CL/devices/pthread/pthread.c:  ops->uninit = pocl_pthread_uninit;
+lib/CL/devices/pthread/pthread.c:  ops->reinit = pocl_pthread_reinit;
+lib/CL/devices/pthread/pthread.c:  ops->init = pocl_pthread_init;
+lib/CL/devices/pthread/pthread.c:  ops->run = pocl_pthread_run;
+lib/CL/devices/pthread/pthread.c:  ops->join = pocl_pthread_join;
+lib/CL/devices/pthread/pthread.c:  ops->submit = pocl_pthread_submit;
+lib/CL/devices/pthread/pthread.c:  ops->notify = pocl_pthread_notify;
+lib/CL/devices/pthread/pthread.c:  ops->broadcast = pocl_broadcast;
+lib/CL/devices/pthread/pthread.c:  ops->flush = pocl_pthread_flush;
+lib/CL/devices/pthread/pthread.c:  ops->wait_event = pocl_pthread_wait_event;
+lib/CL/devices/pthread/pthread.c:  ops->notify_event_finished = pocl_pthread_notify_event_finished;
+lib/CL/devices/pthread/pthread.c:  ops->notify_cmdq_finished = pocl_pthread_notify_cmdq_finished;
+lib/CL/devices/pthread/pthread.c:  ops->update_event = pocl_pthread_update_event;
+lib/CL/devices/pthread/pthread.c:  ops->free_event_data = pocl_pthread_free_event_data;
+lib/CL/devices/pthread/pthread.c:  ops->init_queue = pocl_pthread_init_queue;
+lib/CL/devices/pthread/pthread.c:  ops->free_queue = pocl_pthread_free_queue;
+lib/CL/devices/pthread/pthread.c:  int env_count = pocl_device_get_env_count(ops->device_name);
+lib/CL/devices/remote/remote.c:  ops->device_name = remote_device_name;
+lib/CL/devices/remote/remote.c:  ops->probe = pocl_remote_probe;
+lib/CL/devices/remote/remote.c:  ops->init = pocl_remote_init;
+lib/CL/devices/remote/remote.c:  ops->post_init = pocl_remote_setup_peer_mesh;
+lib/CL/devices/remote/remote.c:  // ops->uninit = pocl_remote_uninit;
+lib/CL/devices/remote/remote.c:  // ops->reinit = pocl_remote_reinit;
+lib/CL/devices/remote/remote.c:  ops->alloc_mem_obj = pocl_remote_alloc_mem_obj;
+lib/CL/devices/remote/remote.c:  ops->alloc_subbuffer = pocl_remote_alloc_subbuffer;
+lib/CL/devices/remote/remote.c:  ops->svm_alloc = pocl_remote_svm_alloc;
+lib/CL/devices/remote/remote.c:  ops->svm_free = pocl_remote_svm_free;
+lib/CL/devices/remote/remote.c:  ops->usm_alloc = pocl_remote_usm_alloc;
+lib/CL/devices/remote/remote.c:  ops->usm_free = pocl_remote_usm_free;
+lib/CL/devices/remote/remote.c:  ops->free = pocl_remote_free;
+lib/CL/devices/remote/remote.c:  ops->get_mapping_ptr = pocl_driver_get_mapping_ptr;
+lib/CL/devices/remote/remote.c:  ops->free_mapping_ptr = pocl_driver_free_mapping_ptr;
+lib/CL/devices/remote/remote.c:  ops->get_device_info_ext = pocl_remote_get_device_info_ext;
+lib/CL/devices/remote/remote.c:  ops->set_kernel_exec_info_ext = pocl_remote_set_kernel_exec_info_ext;
+lib/CL/devices/remote/remote.c:  ops->can_migrate_d2d = pocl_remote_can_migrate_d2d;
+lib/CL/devices/remote/remote.c:  ops->create_kernel = pocl_remote_create_kernel;
+lib/CL/devices/remote/remote.c:  ops->free_kernel = pocl_remote_free_kernel;
+lib/CL/devices/remote/remote.c:  ops->init_queue = pocl_remote_init_queue;
+lib/CL/devices/remote/remote.c:  ops->free_queue = pocl_remote_free_queue;
+lib/CL/devices/remote/remote.c:  ops->build_source = pocl_remote_build_source;
+lib/CL/devices/remote/remote.c:  ops->link_program = pocl_remote_link_program;
+lib/CL/devices/remote/remote.c:  ops->build_binary = pocl_remote_build_binary;
+lib/CL/devices/remote/remote.c:  ops->build_builtin = pocl_remote_build_builtin;
+lib/CL/devices/remote/remote.c:  ops->free_program = pocl_remote_free_program;
+lib/CL/devices/remote/remote.c:  ops->setup_metadata = pocl_remote_setup_metadata;
+lib/CL/devices/remote/remote.c:  ops->supports_binary = pocl_remote_supports_binary;
+lib/CL/devices/remote/remote.c:  ops->join = pocl_remote_join;
+lib/CL/devices/remote/remote.c:  ops->submit = pocl_remote_submit;
+lib/CL/devices/remote/remote.c:  ops->broadcast = pocl_broadcast;
+lib/CL/devices/remote/remote.c:  ops->notify = pocl_remote_notify;
+lib/CL/devices/remote/remote.c:  ops->flush = pocl_remote_flush;
+lib/CL/devices/remote/remote.c:  ops->wait_event = pocl_remote_wait_event;
+lib/CL/devices/remote/remote.c:  ops->update_event = pocl_remote_update_event;
+lib/CL/devices/remote/remote.c:  ops->free_event_data = pocl_remote_free_event_data;
+lib/CL/devices/remote/remote.c:  ops->notify_cmdq_finished = pocl_remote_notify_cmdq_finished;
+lib/CL/devices/remote/remote.c:  ops->notify_event_finished = pocl_remote_notify_event_finished;
+lib/CL/devices/remote/remote.c:  ops->build_hash = pocl_remote_build_hash;
+lib/CL/devices/remote/remote.c:  ops->create_sampler = pocl_remote_create_sampler;
+lib/CL/devices/remote/remote.c:  ops->free_sampler = pocl_remote_free_sampler;
+lib/CL/devices/remote/remote.c:  int env_count = pocl_device_get_env_count (ops->device_name);
+lib/CL/devices/remote/remote.c:  char *dev_hash = device->ops->build_hash (device);
+lib/CL/devices/remote/remote.c:      if (strncmp (program->devices[i]->ops->device_name, remote_device_name,
+lib/CL/devices/remote/remote.c:  assert (strncmp (device->ops->device_name, remote_device_name, 7) == 0);
+lib/CL/devices/remote/remote.c:  assert (strncmp (device->ops->device_name, remote_device_name, 7) == 0);
+lib/CL/devices/remote/remote.c:  assert (strncmp (device->ops->device_name, remote_device_name, 7) == 0);
+lib/CL/devices/remote/remote.c:  assert (strncmp (device->ops->device_name, remote_device_name, 7) == 0);
+lib/CL/devices/remote/remote.c:  if ((strncmp (dest->ops->device_name, remote_device_name, 7) != 0)
+lib/CL/devices/remote/remote.c:      || (strncmp (source->ops->device_name, remote_device_name, 7) != 0))
+lib/CL/devices/tbb/tbb.c:  ops->device_name = "cpu-tbb";
+lib/CL/devices/tbb/tbb.c:  ops->probe = pocl_tbb_probe;
+lib/CL/devices/tbb/tbb.c:  ops->uninit = pocl_tbb_uninit;
+lib/CL/devices/tbb/tbb.c:  ops->reinit = pocl_tbb_reinit;
+lib/CL/devices/tbb/tbb.c:  ops->init = pocl_tbb_init;
+lib/CL/devices/tbb/tbb.c:  ops->submit = pocl_tbb_submit;
+lib/CL/devices/tbb/tbb.c:  ops->notify = pocl_tbb_notify;
+lib/CL/devices/tbb/tbb.c:  int env_count = pocl_device_get_env_count(ops->device_name);
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->device_name = "ttasim";
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->probe = pocl_ttasim_probe;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->uninit = pocl_ttasim_uninit;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->reinit = pocl_ttasim_reinit;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->init = pocl_ttasim_init;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->init_build = pocl_tce_init_build;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->alloc_mem_obj = pocl_tce_alloc_mem_obj;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->free = pocl_tce_free;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->read = pocl_tce_read;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->read_rect = pocl_tce_read_rect;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->write = pocl_tce_write;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->write_rect = pocl_tce_write_rect;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->copy = pocl_tce_copy;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->copy_rect = pocl_tce_copy_rect;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->memfill = pocl_tce_memfill;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->map_mem = pocl_tce_map_mem;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->unmap_mem = pocl_tce_unmap_mem;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->get_mapping_ptr = pocl_driver_get_mapping_ptr;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->free_mapping_ptr = pocl_driver_free_mapping_ptr;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->run = pocl_tce_run;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->build_source = pocl_driver_build_source;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->link_program = pocl_driver_link_program;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->build_binary = pocl_driver_build_binary;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->free_program = pocl_driver_free_program;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->setup_metadata = pocl_driver_setup_metadata;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->supports_binary = pocl_driver_supports_binary;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->build_poclbinary = pocl_driver_build_poclbinary;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->compile_kernel = pocl_tce_compile_kernel;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->build_builtin = pocl_driver_build_opencl_builtins;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->join = pocl_tce_join;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->submit = pocl_tce_submit;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->broadcast = pocl_broadcast;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->notify = pocl_tce_notify;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->flush = pocl_tce_flush;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->wait_event = pocl_tce_wait_event;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->free_event_data = pocl_tce_free_event_data;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->notify_cmdq_finished = pocl_tce_notify_cmdq_finished;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->notify_event_finished = pocl_tce_notify_event_finished;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->build_hash = pocl_tce_build_hash;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->get_device_info_ext = NULL;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->update_event = pocl_ttasim_update_event;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->init_queue = pocl_tce_init_queue;
+lib/CL/devices/tce/ttasim/ttasim.cc:  ops->free_queue = pocl_tce_free_queue;
+lib/CL/devices/tce/ttasim/ttasim.cc:  int env_count = pocl_device_get_env_count(ops->device_name);
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->device_name = "vulkan";
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->probe = pocl_vulkan_probe;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->init = pocl_vulkan_init;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->uninit = pocl_vulkan_uninit;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->reinit = pocl_vulkan_reinit;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->read = pocl_vulkan_read;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->read_rect = pocl_vulkan_read_rect;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->write = pocl_vulkan_write;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->write_rect = pocl_vulkan_write_rect;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->copy = pocl_vulkan_copy;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->copy_rect = pocl_vulkan_copy_rect;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->memfill = pocl_vulkan_memfill;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->map_mem = pocl_vulkan_map_mem;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->unmap_mem = pocl_vulkan_unmap_mem;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->get_mapping_ptr = pocl_vulkan_get_mapping_ptr;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->free_mapping_ptr = pocl_vulkan_free_mapping_ptr;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->can_migrate_d2d = NULL;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->migrate_d2d = NULL;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->compute_local_size = pocl_wg_utilization_maximizer;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->run = pocl_vulkan_run;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->run_native = NULL;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->alloc_mem_obj = pocl_vulkan_alloc_mem_obj;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->free = pocl_vulkan_free;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->build_source = pocl_vulkan_build_source;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->build_binary = pocl_vulkan_build_binary;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->link_program = NULL;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->free_program = pocl_vulkan_free_program;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->setup_metadata = pocl_vulkan_setup_metadata;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->supports_binary = pocl_vulkan_supports_binary;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->build_poclbinary = pocl_vulkan_build_poclbinary;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->compile_kernel = NULL;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->join = pocl_vulkan_join;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->submit = pocl_vulkan_submit;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->broadcast = pocl_broadcast;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->notify = pocl_vulkan_notify;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->flush = pocl_vulkan_flush;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->build_hash = pocl_vulkan_build_hash;
+lib/CL/devices/vulkan/pocl-vulkan.c:  /* ops->get_timer_value = pocl_vulkan_get_timer_value; */
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->wait_event = pocl_vulkan_wait_event;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->notify_event_finished = pocl_vulkan_notify_event_finished;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->notify_cmdq_finished = pocl_vulkan_notify_cmdq_finished;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->free_event_data = pocl_vulkan_free_event_data;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->wait_event = pocl_vulkan_wait_event;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->update_event = pocl_vulkan_update_event;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->init_queue = pocl_vulkan_init_queue;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->free_queue = pocl_vulkan_free_queue;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->create_image = NULL;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->free_image = NULL;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->create_sampler = NULL;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->free_sampler = NULL;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->copy_image_rect = pocl_vulkan_copy_image_rect;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->write_image_rect = pocl_vulkan_write_image_rect;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->read_image_rect = pocl_vulkan_read_image_rect;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->map_image = pocl_vulkan_map_image;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->unmap_image = pocl_vulkan_unmap_image;
+lib/CL/devices/vulkan/pocl-vulkan.c:  ops->fill_image = pocl_vulkan_fill_image;
+lib/CL/devices/vulkan/pocl-vulkan.c:  int env_count = pocl_device_get_env_count (ops->device_name);
+lib/CL/pocl_binary.c:  char *dev_hash = device->ops->build_hash(device);
+lib/CL/pocl_build.c:          if (dev->ops->free_program)
+lib/CL/pocl_build.c:            dev->ops->free_program (dev, program, i);
+lib/CL/pocl_build.c:          if (device->ops->setup_metadata
+lib/CL/pocl_build.c:              && device->ops->setup_metadata (device, program, device_i))
+lib/CL/pocl_build.c:          if (device->ops->build_defined_builtin == NULL)
+lib/CL/pocl_build.c:          error = device->ops->build_defined_builtin (program, device_i);
+lib/CL/pocl_build.c:          if (device->ops->build_builtin == NULL)
+lib/CL/pocl_build.c:          error = device->ops->build_builtin (program, device_i);
+lib/CL/pocl_build.c:          if (device->ops->link_program == NULL)
+lib/CL/pocl_build.c:          error = device->ops->link_program (program, device_i,
+lib/CL/pocl_build.c:          if (device->ops->build_source == NULL)
+lib/CL/pocl_build.c:          error = device->ops->build_source (
+lib/CL/pocl_build.c:          printf("device name: %s\n",device->ops->device_name);
+lib/CL/pocl_build.c:          if (device->ops->build_binary == NULL)
+lib/CL/pocl_build.c:          error = device->ops->build_binary (
+lib/CL/pocl_build.c:          if (!device->ops->post_build_program)
+lib/CL/pocl_build.c:          errcode = device->ops->post_build_program (program, device_i);
+lib/CL/pocl_cache.c:    if (device->ops->build_hash)
+lib/CL/pocl_cache.c:        char *dev_hash = device->ops->build_hash(device);
+lib/CL/pocl_cl.h:   * cmd-queue-finished notification (via ops->notify_cmdq_finished) */
+lib/CL/pocl_llvm_build.cc:  if (device->ops->init_build != NULL)
+lib/CL/pocl_llvm_build.cc:        device->ops->init_build (device->data);
+lib/CL/pocl_llvm_wg.cc:  if (device->ops->init_target_machine)
+lib/CL/pocl_llvm_wg.cc:    device->ops->init_target_machine(device->data, TM);
+lib/CL/pocl_mem_management.c:          if (d->ops->can_migrate_d2d)
+lib/CL/pocl_mem_management.c:            cur_d2d_mig_priority = d->ops->can_migrate_d2d (dev, d);
+lib/CL/pocl_ndrange_kernel.c:  if (realdev->ops->verify_ndrange_sizes)
+lib/CL/pocl_ndrange_kernel.c:      int errcode = realdev->ops->verify_ndrange_sizes (OFS, GWS, LWS);
+lib/CL/pocl_ndrange_kernel.c:      if (realdev->ops->compute_local_size)
+lib/CL/pocl_ndrange_kernel.c:        realdev->ops->compute_local_size (realdev, kernel, device_i,
+lib/CL/pocl_util.c:      assert (dev->ops->alloc_mem_obj);
+lib/CL/pocl_util.c:      errcode = dev->ops->alloc_mem_obj (dev, obj, NULL);
+lib/CL/pocl_util.c:  command_queue->device->ops->submit(node, command_queue);
+lib/CL/pocl_util.c:  /* node->sync.event.event is unlocked by device_ops->submit */
+lib/CL/pocl_util.c:  if (dev->ops->free_mapping_ptr)
+lib/CL/pocl_util.c:    dev->ops->free_mapping_ptr (dev->data, mem_id, mem, map);
+lib/CL/pocl_util.c:              if (dev->ops->usm_alloc && dev->ops->usm_free)
+lib/CL/pocl_util.c:      if (dev->ops->init_context)
+lib/CL/pocl_util.c:        dev->ops->init_context (dev, context);
+lib/CL/pocl_util.c:  if (cq->device->ops->update_event)
+lib/CL/pocl_util.c:    cq->device->ops->update_event (cq->device, event);
+lib/CL/pocl_util.c:  if (cq->device->ops->update_event)
+lib/CL/pocl_util.c:    cq->device->ops->update_event (cq->device, event);
+lib/CL/pocl_util.c:  if (cq->device->ops->update_event)
+lib/CL/pocl_util.c:    cq->device->ops->update_event (cq->device, event);
+lib/CL/pocl_util.c:  if (cq->device->ops->update_event)
+lib/CL/pocl_util.c:    ops->update_event (cq->device, event);
+lib/CL/pocl_util.c:  if (ops->notify_cmdq_finished && (cq->command_count == 0) && cq->notification_waiting_threads) {
+lib/CL/pocl_util.c:  ops->broadcast (event);
+lib/CL/pocl_util.c:  if (ops->notify_event_finished)
+lib/CL/pocl_util.c:    ops->notify_event_finished (event);
+lib/CL/pocl_util.c:    ops->notify_cmdq_finished (cq);

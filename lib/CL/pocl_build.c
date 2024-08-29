@@ -617,7 +617,7 @@ compile_and_link_program(int compile_program,
                                                          void *user_data),
                          void *user_data)
 {
-  printf("# compile_and_link_program\n");
+  printf("<PoCL/CL> compile_and_link_program()\n");
   char link_options[512];
   int errcode, error;
   int create_library = 0;

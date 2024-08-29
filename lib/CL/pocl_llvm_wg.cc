@@ -664,7 +664,7 @@ public:
             size_t ProgramBcSize,
             char* LinkinOutputBCPath) {
 
-    printf("#POCL: ProgramWithContext init\n");              
+    printf("<PoCL/CL> ProgramWithContext init()\n");              
     Num = 0;
     llvm::Module *P = parseModuleIRMem(ProgramBcBytes, ProgramBcSize, &LLVMCtx);
     if (P == nullptr)
@@ -1256,7 +1256,7 @@ int pocl_llvm_generate_workgroup_function_nowrite(
     _cl_command_node *Command, void **Output, int Specialize) {
 
 
-  printf("#pocl: -pocl_llvm_generate_workgroup_function_nowrite\n");
+  printf("<PoCL/CL> pocl_llvm_generate_workgroup_function_nowrite()\n");
 
   _cl_command_run *RunCommand = &Command->command.run;
   cl_program Program = Kernel->program;
@@ -1356,6 +1356,9 @@ int pocl_llvm_generate_workgroup_function(unsigned DeviceI, cl_device_id Device,
                                           cl_kernel Kernel,
                                           _cl_command_node *Command,
                                           int Specialize) {
+
+  printf("<PoCL/CL> pocl_llvm_generate_workgroup_function()\n");                                            
+
   cl_context ctx = Kernel->context;
   void *Module = NULL;
 
@@ -1397,7 +1400,7 @@ int pocl_llvm_read_program_llvm_irs(cl_program program, unsigned device_i,
                                     const char *program_bc_path) {
 
 
-  printf("#POCL: -pocl_llvm_read_program_llvm_irs\n");                                      
+  printf("<POCL/CL> pocl_llvm_read_program_llvm_irs()\n");                                      
   cl_context ctx = program->context;
   PoclLLVMContextData *llvm_ctx = (PoclLLVMContextData *)ctx->llvm_context_data;
   PoclCompilerMutexGuard lockHolder(&llvm_ctx->Lock);
@@ -1472,6 +1475,8 @@ static void initPassManagerForCodeGen(legacy::PassManager &PM,
  * Output native object file (<kernel>.so.o). */
 int pocl_llvm_codegen(cl_device_id Device, cl_program program, void *Modp,
                       char **Output, uint64_t *OutputSize) {
+
+  printf("<PoCL/CL> pocl_llvm_codegen\n");
 
   cl_context ctx = program->context;
   PoclLLVMContextData *llvm_ctx = (PoclLLVMContextData *)ctx->llvm_context_data;

@@ -120,7 +120,7 @@ POname(clCreateProgramWithIL)(cl_context context,
 CL_API_SUFFIX__VERSION_2_1
 {
 
-  printf("-POclCreateProgramWithIL\n");
+  printf("<PoCL/CL> POclCreateProgramWithIL()\n");
 
   /* if SPIR-V is disabled, return error early */
 #if defined(ENABLE_CONFORMANCE) && !defined(ENABLE_SPIRV)

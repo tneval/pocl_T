@@ -46,6 +46,8 @@ sub_group_barrier (memory_scope scope)
   work_group_barrier (CLK_GLOBAL_MEM_FENCE);
 }
 
+
+//printf("SG ANY\n");
 int _CL_OVERLOADABLE
 sub_group_any (int predicate)
 {
