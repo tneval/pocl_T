@@ -38,6 +38,12 @@ if(LLVM_VERSION VERSION_EQUAL 15.0)
   endif()
 endif()
 
+# Note that in case of c files, only -g should be used, not -cl-opt-disable
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(KERNEL_LIB_DEBUG_FLAGS "-g -cl-opt-disable")
+else()
+  set(KERNEL_LIB_DEBUG_FLAGS "")
+endif()
 
 function(compile_c_to_bc FILENAME SUBDIR BC_FILE_LIST)
     get_filename_component(FNAME "${FILENAME}" NAME)
