@@ -351,6 +351,9 @@ pocl_setup_kernel_arg_array_with_locals (void **arguments, void **arguments2,
                                     kernel_run_command *k, char *local_mem,
                                     size_t local_mem_size)
 {
+
+  printf("<PoCL/CL> pocl_setup_kernel_arg_array_with_locals(local_mem_size: %zu, %d)\n",local_mem_size, k->kernel->meta->num_args);
+
   pocl_kernel_metadata_t *meta = k->kernel->meta;
   cl_uint i;
 
@@ -361,6 +364,7 @@ pocl_setup_kernel_arg_array_with_locals (void **arguments, void **arguments2,
 
   for (i = 0; i < meta->num_args; ++i)
     {
+      //printf("num_arg: %d\n",i);
       if (ARG_IS_LOCAL (meta->arg_info[i]))
         {
           size_t size = k->kernel_args[i].size;
@@ -370,6 +374,10 @@ pocl_setup_kernel_arg_array_with_locals (void **arguments, void **arguments2,
               arguments2[i] = start;
               start += size;
               start = align_ptr (start);
+
+
+              //printf("start: %zu\tlocal_mem: %zu\tlocal_mem_size: %zu\tDIFF: %zu\n",(size_t)start,(size_t)local_mem, local_mem_size,local_mem_size - (size_t)(start-local_mem));
+
               assert ((size_t) (start - local_mem) <= local_mem_size);
             }
           else
@@ -380,6 +388,8 @@ pocl_setup_kernel_arg_array_with_locals (void **arguments, void **arguments2,
               assert (sizeof (size_t) == sizeof (void *));
               arguments[i] = (void *)size;
             }
+
+            //printf("local arg[%d] size: %zu\n",i, size);
         }
     }
   if (k->device->device_alloca_locals)

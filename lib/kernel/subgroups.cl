@@ -23,6 +23,14 @@
 
 /* See subgroups.c for further documentation. */
 
+
+struct String{
+    char str[100];
+};
+
+
+void _CL_OVERLOADABLE printFromKernel(struct String s);
+
 void _CL_OVERLOADABLE
 sub_group_barrier (cl_mem_fence_flags flags)
 {
@@ -47,16 +55,23 @@ sub_group_barrier (memory_scope scope)
 }
 
 
-//printf("SG ANY\n");
+// This ends up being called from sycl::any_of_group, with the predicate fed in there.
 int _CL_OVERLOADABLE
 sub_group_any (int predicate)
 {
+
+  struct String string = {"<PoCL/Kernel-lib> sub_group_any()"}; 
+  /* printFromKernel(string); */
+
   return sub_group_reduce_max ((unsigned)predicate);
 }
 
 int _CL_OVERLOADABLE
 sub_group_all (int predicate)
 {
+  struct String string = {"<PoCL/Kernel-lib> sub_group_all()"}; 
+  printFromKernel(string);
+
   return sub_group_reduce_min ((unsigned)predicate);
 }
 

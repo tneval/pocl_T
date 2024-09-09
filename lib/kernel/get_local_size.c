@@ -21,13 +21,20 @@
    THE SOFTWARE.
 */
 
+
+
 extern const size_t _local_size_x;
 extern const size_t _local_size_y;
 extern const size_t _local_size_z;
 
+extern void printti();
+
 size_t _CL_OVERLOADABLE _CL_READNONE _CL_OPTNONE
 get_local_size (unsigned int dimindx)
 {
+
+  //printti();
+
   switch(dimindx)
     {
     case 0: return _local_size_x;

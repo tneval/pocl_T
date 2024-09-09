@@ -28,9 +28,24 @@
  */
 
 
+
+
+
 #include <math.h>
 #include "work_group_alloca.h"
 #include <stdio.h>
+
+
+struct String{
+    char str[100];
+};
+
+
+void _CL_OVERLOADABLE 
+printFromKernel(struct String s)
+{
+  fprintf(stderr, "%s\n",s.str);
+}
 
 size_t _CL_OVERLOADABLE get_local_id (unsigned int dimindx);
 size_t _CL_OVERLOADABLE get_local_linear_id (void);
@@ -44,6 +59,8 @@ get_sub_group_size (void)
 {
   return _pocl_sub_group_size;
 }
+
+
 
 uint _CL_OVERLOADABLE
 get_max_sub_group_size (void)
@@ -175,30 +192,34 @@ _Z19sub_group_broadcastDhj (half val, uint mask)
 
 #endif
 
-  // REMOVED FROM BELOW
-   //printf("---------------------------------------------\n");                  \
 
 #define SUB_GROUP_REDUCE_OT(OPNAME, OPERATION, TYPE)                          \
   __attribute__ ((always_inline))                                             \
   TYPE _CL_OVERLOADABLE sub_group_reduce_##OPNAME (TYPE val)                  \
   {                                                                           \
+  /* fprintf(stderr,""); */ \
+     fprintf(stderr,"<PoCL/Kernel-lib> sub_group_reduce_%s()\n\t- operation: %s\t- type: %s\n",#OPNAME, #OPERATION, #TYPE);      \
     volatile TYPE *temp_storage                                               \
         = __pocl_work_group_alloca (sizeof (TYPE), sizeof (TYPE), 0);         \
     temp_storage[get_local_linear_id ()] = val;                               \
-    sub_group_barrier (CLK_LOCAL_MEM_FENCE);                                  \
-    if (get_sub_group_local_id () == 0)                                       \
-      {                                                                       \
-        for (uint i = 1; i < get_sub_group_size (); ++i)                      \
+    /* fprintf(stderr, "Local linear id: %d\t val: %u\n",get_local_linear_id(),val);\
+ */    sub_group_barrier (CLK_LOCAL_MEM_FENCE);                                  \
+      /* fprintf(stderr,"linear id: %u\tfirst_llid %u\n",get_local_linear_id(),get_first_llid());  \
+ */    if (get_sub_group_local_id () == 0)                                       \
+      {        \
+      /* fprintf(stderr,"Size of subgroup: %d\n",get_sub_group_size());                                           \
+  */       for (uint i = 1; i < get_sub_group_size (); ++i)                      \
           {                                                                   \
-            TYPE a = temp_storage[get_first_llid ()],                         \
+/*             fprintf(stderr,"%i",i);       \
+ */            TYPE a = temp_storage[get_first_llid ()],                         \
                  b = temp_storage[get_first_llid () + i];                     \
             temp_storage[get_first_llid ()] = OPERATION;                      \
           }                                                                   \
       }                                                                       \
     sub_group_barrier (CLK_LOCAL_MEM_FENCE);                                  \
-    return temp_storage[get_first_llid ()];                                   \
-  }
-
+    return temp_storage[get_first_llid ()];                                   \ 
+  } \
+ 
 #define SUB_GROUP_REDUCE_T(OPNAME, OPERATION)                                 \
   SUB_GROUP_REDUCE_OT (OPNAME, OPERATION, int)                                \
   SUB_GROUP_REDUCE_OT (OPNAME, OPERATION, uint)                               \

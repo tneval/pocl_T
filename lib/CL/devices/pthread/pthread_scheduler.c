@@ -267,6 +267,7 @@ static int
 work_group_scheduler (kernel_run_command *k,
                       struct pool_thread_data *thread_data)
 {
+  //printf("<PoCL/CL> work_group_scheduler()\n");
   pocl_kernel_metadata_t *meta = k->kernel->meta;
 
   void *arguments[meta->num_args + meta->num_locals + 1];

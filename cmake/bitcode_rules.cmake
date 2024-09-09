@@ -38,8 +38,16 @@ if(LLVM_VERSION VERSION_EQUAL 15.0)
   endif()
 endif()
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(KERNEL_C_DEBUG_FLAG "-g")
+  set(KERNEL_CL_DEBUG_FLAG "-cl-opt-disable")
+else()
+  set(KERNEL_C_DEBUG_FLAG "")
+  set(KERNEL_CL_DEBUG_FLAG "")
+endif()
 
 function(compile_c_to_bc FILENAME SUBDIR BC_FILE_LIST)
+message("Compile_c_to_bc: ${FILENAME}")
     get_filename_component(FNAME "${FILENAME}" NAME)
     set(BC_FILE "${CMAKE_CURRENT_BINARY_DIR}/${SUBDIR}/${FNAME}.bc")
     set(${BC_FILE_LIST} ${${BC_FILE_LIST}} ${BC_FILE} PARENT_SCOPE)
@@ -54,7 +62,8 @@ function(compile_c_to_bc FILENAME SUBDIR BC_FILE_LIST)
         "${CMAKE_SOURCE_DIR}/include/pocl_types.h"
         "${CMAKE_SOURCE_DIR}/include/_kernel_c.h"
         COMMAND "${CLANG}" ${OPAQUE_OPT} ${CLANG_FLAGS} ${DEVICE_CL_FLAGS} "-O1"
-        ${KERNEL_C_FLAGS} "-o" "${BC_FILE}" "-c" "${FULL_F_PATH}"
+        ${KERNEL_C_FLAGS} ${KERNEL_C_DEBUG_FLAG} ${KERNEL_CL_DEBUG_FLAG}
+        "-o" "${BC_FILE}" "-c" "${FULL_F_PATH}"
         "-I${CMAKE_SOURCE_DIR}/include"
         "-include" "${CMAKE_SOURCE_DIR}/include/_kernel_c.h"
         COMMENT "Building C to LLVM bitcode ${BC_FILE}"
@@ -62,6 +71,7 @@ function(compile_c_to_bc FILENAME SUBDIR BC_FILE_LIST)
 endfunction()
 
 function(compile_cc_to_bc FILENAME SUBDIR BC_FILE_LIST)
+
     get_filename_component(FNAME "${FILENAME}" NAME)
     set(BC_FILE "${CMAKE_CURRENT_BINARY_DIR}/${SUBDIR}/${FNAME}.bc")
     set(${BC_FILE_LIST} ${${BC_FILE_LIST}} ${BC_FILE} PARENT_SCOPE)
@@ -74,7 +84,7 @@ function(compile_cc_to_bc FILENAME SUBDIR BC_FILE_LIST)
     add_custom_command(OUTPUT "${BC_FILE}"
         DEPENDS "${FULL_F_PATH}"
         COMMAND  "${CLANGXX}" ${OPAQUE_OPT} ${CLANG_FLAGS} ${KERNEL_CXX_FLAGS}
-        ${DEVICE_C_FLAGS} "-o" "${BC_FILE}" "-c" "${FULL_F_PATH}" "-O1"
+        ${DEVICE_C_FLAGS} "-o" "${BC_FILE}" "-c" "${FULL_F_PATH}" "-O1" ${KERNEL_C_DEBUG_FLAG}
         COMMENT "Building C++ to LLVM bitcode ${BC_FILE}"
         VERBATIM)
 endfunction()
@@ -130,7 +140,7 @@ function(compile_cl_to_bc FILENAME SUBDIR BC_FILE_LIST EXTRA_CONFIG)
         DEPENDS "${FULL_F_PATH}"
           ${DEPENDLIST}
         COMMAND "${CLANG}" ${OPAQUE_OPT} ${CLANG_FLAGS}
-        ${KERNEL_CL_FLAGS} ${DEVICE_CL_FLAGS}
+        ${KERNEL_CL_FLAGS} ${DEVICE_CL_FLAGS} ${KERNEL_C_DEBUG_FLAG} ${KERNEL_CL_DEBUG_FLAG}
         "-o" "${BC_FILE}" "-c" "${FULL_F_PATH}"
         ${INCLUDELIST}
         COMMENT "Building CL to LLVM bitcode ${BC_FILE}"
@@ -141,6 +151,7 @@ endfunction()
 # can't use c_to_bc, since SLEEF's C files need to be prefixed with EXT
 # (because the same files are compiled multiple times)
 function(compile_sleef_c_to_bc EXT FILENAME SUBDIR BCLIST)
+  
     get_filename_component(FNAME "${FILENAME}" NAME)
     set(BC_FILE "${CMAKE_CURRENT_BINARY_DIR}/${SUBDIR}/${EXT}_${FNAME}.bc")
     list(APPEND ${BCLIST} "${BC_FILE}")
@@ -159,7 +170,8 @@ function(compile_sleef_c_to_bc EXT FILENAME SUBDIR BCLIST)
         "-I" "${CMAKE_SOURCE_DIR}/lib/kernel/sleef/arch"
         "-I" "${CMAKE_SOURCE_DIR}/lib/kernel/sleef/libm"
         "-I" "${CMAKE_SOURCE_DIR}/lib/kernel/sleef/include"
-        "-O1" "-o" "${BC_FILE}" "-c" "${FULL_F_PATH}"
+        "-O1" ${KERNEL_C_DEBUG_FLAG}
+        "-o" "${BC_FILE}" "-c" "${FULL_F_PATH}"
         COMMENT "Building SLEEF to LLVM bitcode ${BC_FILE}"
         VERBATIM)
 endfunction()
@@ -168,6 +180,7 @@ endfunction()
 # BCLIST is the name of a list variable; the path of the generated BC file will be
 # appended to this variable is the caller's scope
 function(compile_ll_to_bc FILENAME SUBDIR BCLIST)
+    
     if(IS_ABSOLUTE "${FILENAME}")
       set(FULL_F_PATH "${FILENAME}")
     else()

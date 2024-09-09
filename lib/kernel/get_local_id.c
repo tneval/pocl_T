@@ -21,6 +21,8 @@
    THE SOFTWARE.
 */
 
+#include "printf_base.h"
+
 extern const size_t _local_id_x;
 extern const size_t _local_id_y;
 extern const size_t _local_id_z;
@@ -28,6 +30,8 @@ extern const size_t _local_id_z;
 size_t _CL_OVERLOADABLE _CL_READNONE _CL_OPTNONE
 get_local_id (unsigned int dimindx)
 {
+   
+
   switch(dimindx)
     {
     case 0: return _local_id_x;

@@ -1105,8 +1105,6 @@ int
 pocl_driver_build_opencl_builtins (cl_program program, cl_uint device_i)
 {
 
-  printf("<PoCL/CL> pocl_driver_buidl_opencl_builtins()\n");
-
   int err;
 
   cl_device_id dev = program->devices[device_i];

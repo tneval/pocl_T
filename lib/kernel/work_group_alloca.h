@@ -34,6 +34,8 @@
  * extra space
  * @return pointer to the allocated stack space (freed at unwind).
  */
+
+
 void *__pocl_work_group_alloca (size_t element_size, size_t align,
                                 size_t extra_bytes);
 
