@@ -26,10 +26,13 @@
 
 struct String{
     char str[100];
+    int val;
 };
 
 
 void _CL_OVERLOADABLE printFromKernel(struct String s);
+
+void _CL_OVERLOADABLE printIntFromKernel(struct String s);
 
 void _CL_OVERLOADABLE
 sub_group_barrier (cl_mem_fence_flags flags)
@@ -58,10 +61,13 @@ sub_group_barrier (memory_scope scope)
 // This ends up being called from sycl::any_of_group, with the predicate fed in there.
 int _CL_OVERLOADABLE
 sub_group_any (int predicate)
-{
-
-  struct String string = {"<PoCL/Kernel-lib> sub_group_any()"}; 
+{  
+  struct String string = {"<PoCL/Kernel-lib> sub_group_any()",predicate};
   /* printFromKernel(string); */
+
+  printIntFromKernel(string);
+  
+
 
   return sub_group_reduce_max ((unsigned)predicate);
 }

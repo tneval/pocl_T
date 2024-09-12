@@ -38,6 +38,7 @@
 
 struct String{
     char str[100];
+    int val;
 };
 
 
@@ -46,6 +47,15 @@ printFromKernel(struct String s)
 {
   fprintf(stderr, "%s\n",s.str);
 }
+
+void _CL_OVERLOADABLE 
+printIntFromKernel(struct String s){
+
+  fprintf(stderr,"%s\tVAL: %d\n",s.str, s.val);
+}
+
+
+
 
 size_t _CL_OVERLOADABLE get_local_id (unsigned int dimindx);
 size_t _CL_OVERLOADABLE get_local_linear_id (void);
@@ -192,18 +202,19 @@ _Z19sub_group_broadcastDhj (half val, uint mask)
 
 #endif
 
+//fprintf(stderr,"<PoCL/Kernel-lib> sub_group_reduce_%s()\n\t- operation: %s\t- type: %s\n",#OPNAME, #OPERATION, #TYPE);      \
 
 #define SUB_GROUP_REDUCE_OT(OPNAME, OPERATION, TYPE)                          \
   __attribute__ ((always_inline))                                             \
   TYPE _CL_OVERLOADABLE sub_group_reduce_##OPNAME (TYPE val)                  \
   {                                                                           \
-  /* fprintf(stderr,""); */ \
-     fprintf(stderr,"<PoCL/Kernel-lib> sub_group_reduce_%s()\n\t- operation: %s\t- type: %s\n",#OPNAME, #OPERATION, #TYPE);      \
+     fprintf(stderr, "FROM SUB_GROUP_REDUCE: local_linear_id: %d\tVAL: %d\n",get_local_linear_id(),val); \
     volatile TYPE *temp_storage                                               \
         = __pocl_work_group_alloca (sizeof (TYPE), sizeof (TYPE), 0);         \
     temp_storage[get_local_linear_id ()] = val;                               \
-    /* fprintf(stderr, "Local linear id: %d\t val: %u\n",get_local_linear_id(),val);\
- */    sub_group_barrier (CLK_LOCAL_MEM_FENCE);                                  \
+    /* fprintf(stderr, "Reached barrier\tLocal linear id: %d\t val: %u\n",get_local_linear_id(),val); */\
+    sub_group_barrier (CLK_LOCAL_MEM_FENCE);                                  \
+    /* fprintf(stderr, "Passed the barrier\tLocal linear id: %d\t val: %u\n",get_local_linear_id(),val); */\
       /* fprintf(stderr,"linear id: %u\tfirst_llid %u\n",get_local_linear_id(),get_first_llid());  \
  */    if (get_sub_group_local_id () == 0)                                       \
       {        \
@@ -216,7 +227,10 @@ _Z19sub_group_broadcastDhj (half val, uint mask)
             temp_storage[get_first_llid ()] = OPERATION;                      \
           }                                                                   \
       }                                                                       \
+      fprintf(stderr, "Reached second barrier\tLocal linear id: %d\t val: %u\n",get_local_linear_id(),val);\
     sub_group_barrier (CLK_LOCAL_MEM_FENCE);                                  \
+    fprintf(stderr, "Passed the second barrier\tLocal linear id: %d\t val: %u\n",get_local_linear_id(),val);\
+    /* fprintf(stderr, "DONE\tLocal linear id: %d\t val: %u\tReturning %u\n",get_local_linear_id(),val,temp_storage[get_first_llid()]); */\
     return temp_storage[get_first_llid ()];                                   \ 
   } \
  
