@@ -1256,7 +1256,13 @@ llvm::PreservedAnalyses WorkitemLoops::run(llvm::Function &F,
   WorkitemHandlerType WIH = AM.getResult<WorkitemHandlerChooser>(F).WIH;
   if (WIH != WorkitemHandlerType::LOOPS &&
       !(WIH == WorkitemHandlerType::CBS && !hasWorkgroupBarriers(F)))
+
+      std::cout << "        WILoops early exit: WIH != LOOPS AND/OR WIH == CBS and no barriers" << std::endl;
     return llvm::PreservedAnalyses::all();
+
+  // This is executed when:
+  // - WIH == LOOPS
+  // - WIH == CBS without barriers
 
   auto &DT = AM.getResult<llvm::DominatorTreeAnalysis>(F);
   auto &PDT = AM.getResult<llvm::PostDominatorTreeAnalysis>(F);
