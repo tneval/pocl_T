@@ -1,6 +1,8 @@
 #include "LLVMUtils.h"
 #include "SimpleFallback.h"
 #include "WorkitemHandlerChooser.h"
+#include "VariableUniformityAnalysis.h"
+#include "VariableUniformityAnalysisResult.hh"
 
 #include <iostream>
 
@@ -10,18 +12,52 @@
 
 
 namespace pocl{
-/* 
-class SimpleFallBackImpl : public pocl::WorkitemHandler{
+
+class SimpleFallbackImpl : public pocl::WorkitemHandler{
 
 public:
+    SimpleFallbackImpl(llvm::DominatorTree &DT, llvm::LoopInfo &LI,
+                    llvm::PostDominatorTree &PDT,
+                    VariableUniformityAnalysisResult &VUA)
+      : WorkitemHandler(), DT(DT), LI(LI), PDT(PDT), VUA(VUA) {}
 
+    virtual bool runOnFunction(llvm::Function &F);
 
-private:
-
-
-};
+/* 
+protected:
+    llvm::Value *getLinearWIIndexInRegion(llvm::Instruction *Instr) override;
+    llvm::Instruction *getLocalIdInRegion(llvm::Instruction *Instr,size_t Dim) override;
  */
 
+// TODO: Check what is actually needed, these are from wiloops
+private:
+    using BasicBlockVector = std::vector<llvm::BasicBlock *>;
+    using InstructionIndex = std::set<llvm::Instruction *>;
+    using InstructionVec = std::vector<llvm::Instruction *>;
+    using StrInstructionMap = std::map<std::string, llvm::AllocaInst *>;
+
+    llvm::DominatorTree &DT;
+    llvm::LoopInfo &LI;
+    llvm::PostDominatorTree &PDT;
+    llvm::Module *M;
+    llvm::Function *F;
+
+    VariableUniformityAnalysisResult &VUA;
+/* 
+    ParallelRegion::ParallelRegionVector OriginalParallelRegions;
+
+    StrInstructionMap ContextArrays;
+
+    std::array<llvm::GlobalVariable *, 3> GlobalIdIterators;
+
+    bool processFunction(llvm::Function &F); */
+
+};
+ 
+bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
+
+    return true;
+}
 
 
 llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
@@ -38,10 +74,22 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
         return llvm::PreservedAnalyses::all();
     }
     
-
     if(WIH == WorkitemHandlerType::FALLBACK){
         std::cout << "WIH  is of type FALLBACK" << std::endl;
     }
+
+    auto &DT = AM.getResult<llvm::DominatorTreeAnalysis>(F);
+    auto &PDT = AM.getResult<llvm::PostDominatorTreeAnalysis>(F);
+    auto &LI = AM.getResult<llvm::LoopAnalysis>(F);
+    auto &VUA = AM.getResult<VariableUniformityAnalysis>(F);
+
+    // Not sure what these do
+    llvm::PreservedAnalyses PAChanged = llvm::PreservedAnalyses::none();
+    PAChanged.preserve<VariableUniformityAnalysis>();
+    PAChanged.preserve<WorkitemHandlerChooser>();
+
+    SimpleFallbackImpl WIL(DT, LI, PDT, VUA);
+
 
     llvm::errs() << F.getName() << "\n";
     return llvm::PreservedAnalyses::all();
