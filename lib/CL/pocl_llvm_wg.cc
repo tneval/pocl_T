@@ -572,6 +572,12 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
     addPass(Passes, "print<pocl-cfg;before>", PassType::Module);
 #endif
 
+
+
+    addPass(Passes, "simplefallback");
+
+
+
     // subcfgformation (for CBS) before workitemloops, as wiloops creates the
     // loops for kernels without barriers, but after the transformation the
     // kernel looks like it has barriers, so subcfg would do its thing.
