@@ -1305,7 +1305,7 @@ void SubCFGFormation::formSubCfgs(llvm::Function &F, llvm::LoopInfo &LI,
     else
       Dim = 2;
   }
-
+  
   const auto LocalSize =
       getLocalSizeValues(F, LocalSizes, WGDynamicLocalSize, Dim);
 
@@ -1500,6 +1500,10 @@ void markLoopParallel(llvm::Function &F, llvm::Loop *L) {
 // enable new pass manager infrastructure
 llvm::PreservedAnalyses
 SubCFGFormation::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
+
+
+  std::cout << "      PoCL-PASS (SubCFGFormation.cc) >> PreservedAnalyses SubCFGFormation::run() -- Function: " << F.getName().str() << std::endl;
+
   if (!isKernelToProcess(F))
     return PreservedAnalyses::all();
 

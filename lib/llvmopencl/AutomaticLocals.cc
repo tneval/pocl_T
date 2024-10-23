@@ -43,6 +43,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include "LLVMUtils.h"
 #include "Workgroup.h"
 #include "pocl_llvm_api.h"
+#include <iostream>
 POP_COMPILER_DIAGS
 
 #define PASS_NAME "automatic-locals"
@@ -189,6 +190,10 @@ static bool automaticLocals(Module &M, FunctionVec &OldKernels) {
 // clear the results for that function or not use inner analyses at all.
 llvm::PreservedAnalyses AutomaticLocals::run(llvm::Module &M,
                                              llvm::ModuleAnalysisManager &AM) {
+
+
+  std::cout << "      PoCL-PASS (AutomaticLocals.cc) >> PreservedAnalyses AutomaticLocals::run() -- Module: " << M.getName().str() << std::endl;
+
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   FunctionVec OldKernels;
   bool Ret = automaticLocals(M, OldKernels);

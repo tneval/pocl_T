@@ -160,14 +160,34 @@ private:
 
 bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
 
+
+  std::cout << "          PoCL-PASS (WorkitemLoops.cc) >> bool WorkitemLoopsImpl::runOnFunction() -- Function: " << Func.getName().str() << std::endl;
+
+  /* dumpCFG(Func, Func.getName().str() + "_before_WILOOPS.dot", nullptr, nullptr);
+  Func.dump(); */
+
+
+  //Func.dump();
+
   M = Func.getParent();
   F = &Func;
   Initialize(cast<Kernel>(&Func));
+
+
+  std::cout << "M (Module): " << M->getName().str() << std::endl;
+  std::cout << "F (Function): " << F->getName().str() << std::endl;
+
 
   GlobalIdIterators = {
       cast<GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(0), ST)),
       cast<GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(1), ST)),
       cast<GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(2), ST))};
+
+
+
+  //std::cout << "GlobalIdIterators:" << std::endl;
+
+
 
   TempInstructionIndex = 0;
 
@@ -195,6 +215,12 @@ bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
   std::cerr << "### After WILoops:\n";
   Func.dump();
 #endif
+
+
+  /* dumpCFG(Func, Func.getName().str() + "_after_WILOOPS.dot", nullptr, nullptr);
+  Func.dump(); */
+
+
   return Changed;
 }
 
@@ -259,22 +285,35 @@ WorkitemLoopsImpl::createLoopAround(ParallelRegion &Region,
   */     
 
   llvm::BasicBlock *LoopBodyEntryBB = EntryBB;
+
+  std::cout << "CreateLoopAround: " << std::endl;
+  std::cout << "Entry name: " << LoopBodyEntryBB->getName().str() << std::endl;
+
+
   llvm::LLVMContext &C = LoopBodyEntryBB->getContext();
   llvm::Function *F = LoopBodyEntryBB->getParent();
   LoopBodyEntryBB->setName(std::string("pregion_for_entry.") + EntryBB->getName().str());
+
+  std::cout << "New entry name: " << LoopBodyEntryBB->getName().str() << std::endl;
 
   assert (ExitBB->getTerminator()->getNumSuccessors() == 1);
 
   llvm::BasicBlock *oldExit = ExitBB->getTerminator()->getSuccessor(0);
 
-  llvm::BasicBlock *forInitBB = 
-    BasicBlock::Create(C, "pregion_for_init", F, LoopBodyEntryBB);
+  std::cout << "old exit: " << oldExit->getName().str() << std::endl;
 
-  llvm::BasicBlock *loopEndBB = 
-    BasicBlock::Create(C, "pregion_for_end", F, ExitBB);
 
-  llvm::BasicBlock *forCondBB = 
-    BasicBlock::Create(C, "pregion_for_cond", F, ExitBB);
+    llvm::BasicBlock *forInitBB = 
+      BasicBlock::Create(C, "pregion_for_init", F, LoopBodyEntryBB);
+
+    llvm::BasicBlock *loopEndBB = 
+      BasicBlock::Create(C, "pregion_for_end", F, ExitBB);
+
+    llvm::BasicBlock *forCondBB = 
+      BasicBlock::Create(C, "pregion_for_cond", F, ExitBB);
+
+  F->dump();
+
 
   DT.reset();
   DT.recalculate(*F);
@@ -466,6 +505,10 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
     I->eraseFromParent();
 #endif
 
+
+ 
+
+
   releaseParallelRegions();
 
   K->getParallelRegions(LI, &OriginalParallelRegions);
@@ -475,9 +518,43 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
   dumpCFG(F, F.getName().str() + "_before_wiloops.dot",
           &OriginalParallelRegions);
 #endif
+  
 
+  // Adds single alloca instruction
   IRBuilder<> builder(&*(F.getEntryBlock().getFirstInsertionPt()));
   LocalIdXFirstVar = builder.CreateAlloca(ST, 0, ".pocl.local_id_x_init");
+
+  /* builder.CreateAlloca(ST,0, "joku");
+  builder.CreateAlloca(ST,0, "joku2");
+
+  llvm::Type *int32Type = llvm::Type::getInt32Ty(F.getContext());
+  llvm::Value *a = builder.CreateAlloca(int32Type, nullptr, "a"); // allocate space for a
+  llvm::Value *b = builder.CreateAlloca(int32Type, nullptr, "b"); // allocate space for b
+
+  builder.CreateStore(llvm::ConstantInt::get(int32Type, 5), a);
+  builder.CreateStore(llvm::ConstantInt::get(int32Type, 10), b);
+
+  llvm::Value *aVal = builder.CreateLoad(builder.getInt32Ty(), a, "aVal");
+  llvm::Value *bVal = builder.CreateLoad(builder.getInt32Ty(), b, "bVal");
+
+
+  //   Create an add instruction
+  llvm::Value *sum = builder.CreateAdd(aVal, bVal, "sum"); */
+
+
+  //F.dump();
+  llvm::BasicBlock &bb = F.getEntryBlock();
+
+  std::cout << "Entry block: " << bb.getName().str() << std::endl;
+
+  const llvm::Instruction* ti = bb.getTerminator();
+  std::cout << " - Terminal instruction of " << F.getName().str() << ": ";
+  ti->print(llvm::outs());
+  std::cout << std::endl;
+
+
+
+//
 
 #if 0
   std::cerr << "### Original" << std::endl;
@@ -495,6 +572,8 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
   }
 #endif
 
+  //F.dump();
+  // dumpCFG(F, F.getName().str() + "_before_WILOOPS.dot", nullptr, nullptr);
   /* Count how many parallel regions share each entry node to
      detect diverging regions that need to be peeled. */
   std::map<llvm::BasicBlock*, int> entryCounts;
@@ -504,19 +583,30 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
            PRE = OriginalParallelRegions.end();
        PRI != PRE; ++PRI) {
     ParallelRegion *Region = (*PRI);
+    Region->dumpNames();
+    //Region->entryBB()->dump();
 #ifdef DEBUG_WORK_ITEM_LOOPS
     std::cerr << "### Adding context save/restore for PR: ";
     Region->dumpNames();
 #endif
     fixMultiRegionVariables(Region);
+
+    // Note: keys are basicblocks
     entryCounts[Region->entryBB()]++;
   }
+
+
+  for(const auto &pair : entryCounts){
+    std::cout << pair.first->getName().str() <<  pair.second << std::endl;
+  }
+
 
 #if 0
   std::cerr << "### After context code addition:" << std::endl;
   F.viewCFG();
 #endif
   std::map<ParallelRegion*, bool> PeeledRegion;
+
   for (ParallelRegion::ParallelRegionVector::iterator
            PRI = OriginalParallelRegions.begin(),
            PRE = OriginalParallelRegions.end();
@@ -535,7 +625,7 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
        has to be peeled so we know which branch to execute
        with the work item loop. In case there are more than one
        parallel region sharing an entry BB, it's a diverging
-       region.
+       region.  
 
        Post dominance of entry by exit does not work in case the
        region is inside a loop and the exit block is in the path
@@ -551,26 +641,59 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
 
     bool Unrolled = false;
     if (PeelFirst) {
+      std::cout << "Peeling" << std::endl;
 #ifdef DEBUG_WORK_ITEM_LOOPS
         std::cerr << "### conditional region, peeling the first iteration" << std::endl;
 #endif
         ParallelRegion *replica =
-            PRegion->replicate(reference_map, ".peeled_wi");
+            PRegion->replicate(reference_map, ".peeled_wi"); // This can be appended with .pocl_X later if duplicates
+
+        replica->dumpNames();
+        std::cout << replica->entryBB()->getName().str() << std::endl;
+
         replica->chainAfter(PRegion);
+
+        
+        //F.dump();
+
+        // Does not seem to do anything at least with the subgroup barrier example
         replica->purge();
+
+        
 
         l = std::make_pair(replica->entryBB(), replica->exitBB());
     } else {
+
+      std::cout << "No need to peel" << std::endl;
+
       llvm::pred_iterator PI = llvm::pred_begin(PRegion->entryBB()),
                           E = llvm::pred_end(PRegion->entryBB());
 
+      std::cout << "begin: " <<  (*PI)->getName().str() << std::endl;
+      //std::cout << "end: " << (*E)->getName().str() << std::endl;
+
+
+      // Start from the immediate precedor
       for (; PI != E; ++PI) {
+
+        std::cout << "hep" << std::endl;
         llvm::BasicBlock *BB = *PI;
+
+        // Check if 
         if (DT.dominates(PRegion->entryBB(), BB) &&
             (regionOfBlock(PRegion->entryBB()) == regionOfBlock(BB)))
           continue;
+        // Add to basic block vector
         preds.push_back(BB);
       }
+
+      if(PRegion){
+          std::cout << "Preds for " << PRegion->entryBB()->getName().str() << ", number of preds" << preds.size() << std::endl;
+        for(int i = 0; i< preds.size(); i++){
+          std::cout << preds[0]->getName().str() << std::endl;
+        }
+      }
+
 
       unsigned UnrollCount;
       if (getenv("POCL_WILOOPS_MAX_UNROLL_COUNT") != NULL)
@@ -584,6 +707,9 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
         }
         UnrollCount /= 2;
       }
+
+      std::cout << "UnrollCount set to " << UnrollCount << std::endl;
+
 
       if (UnrollCount > 1) {
         ParallelRegion *prev = PRegion;
@@ -609,6 +735,7 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
     }
 
     if (WGDynamicLocalSize) {
+        std::cout << "WGDynamicLocalSize is true" << std::endl;
       GlobalVariable *gv;
       gv = M->getGlobalVariable("_local_size_x");
       if (gv == NULL)
@@ -637,7 +764,11 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
                            gv);
 
     } else {
+      std::cout << "WGDynamicLocalSize is false" << std::endl;
       if (WGLocalSizeX > 1) {
+
+        std::cout << "WGLocalSizeX" << WGLocalSizeX << std::endl;
+
         l = createLoopAround(*PRegion, l.first, l.second, PeelFirst, 0,
                              !Unrolled);
       } else {
@@ -646,12 +777,17 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
       }
 
       if (WGLocalSizeY > 1) {
+        std::cout << "WGLocalSizeY" << WGLocalSizeY << std::endl;
+
         l = createLoopAround(*PRegion, l.first, l.second, false, 1);
       } else {
         getGlobalIdOrigin(1);
       }
 
       if (WGLocalSizeZ > 1) {
+
+        std::cout << "WGLocalSizeZ" << WGLocalSizeZ << std::endl;
+
         l = createLoopAround(*PRegion, l.first, l.second, false, 2);
       } else {
         getGlobalIdOrigin(2);
@@ -1110,6 +1246,10 @@ llvm::BasicBlock *WorkitemLoopsImpl::appendIncBlock(llvm::BasicBlock *After,
 // enable new pass manager infrastructure
 llvm::PreservedAnalyses WorkitemLoops::run(llvm::Function &F,
                                            llvm::FunctionAnalysisManager &AM) {
+
+
+  std::cout << "      PoCL-PASS (WorkitemLoops.cc) >> PreservedAnalyses WorkitemLoops::run() -- Function: " << F.getName().str() << std::endl;
+
   if (!isKernelToProcess(F))
     return llvm::PreservedAnalyses::all();
 

@@ -36,6 +36,8 @@ POP_COMPILER_DIAGS
 #include <iostream>
 #include <sstream>
 
+#include "DebugHelpers.h"
+
 #define PASS_NAME "allocastoentry"
 #define PASS_CLASS pocl::AllocasToEntry
 #define PASS_DESC "Move allocas to the function entry node."
@@ -47,6 +49,8 @@ using namespace llvm;
 static bool allocasToEntry(Function &F) {
   // This solves problem with dynamic stack objects that are
   // not supported by some targets (TCE).
+
+
   Function::iterator I = F.begin();
   Instruction *firstInsertionPt = &*(I++)->getFirstInsertionPt();
 
@@ -65,7 +69,19 @@ static bool allocasToEntry(Function &F) {
 
 llvm::PreservedAnalyses AllocasToEntry::run(llvm::Function &F,
                                             llvm::FunctionAnalysisManager &AM) {
+
+  std::cout << "      PoCL-PASS (AllocasToEntry.cc) >> PreservedAnalyses AllocasToEntry::run() -- Function: " << F.getName().str() << std::endl;
+
+  //llvm::outs() << "CFG for function: " << F.getName() << "\n";
+
+  //dumpCFG(F, F.getName().str() + "_before_AllocasToEntry.dot", nullptr, nullptr);
+  //F.dump();
+
   allocasToEntry(F);
+
+  //dumpCFG(F, F.getName().str() + "_after_AllocasToEntry.dot", nullptr, nullptr);
+  //F.dump();
+
   return PreservedAnalyses::all();
 }
 

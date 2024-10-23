@@ -186,6 +186,10 @@ llvm::Error PoCLModulePassManager::build(std::string PoclPipeline,
 #endif
                                          cl_device_id Dev) {
 
+
+ std::cout << "   PoCL (pocl_llvm_wg.cc) >> PoCLModulePassManager::build()" << std::endl;
+
+
 #ifdef PER_STAGE_TARGET_MACHINE
   Machine.reset(GetTargetMachine(Dev));
   TargetMachine *TM = Machine.get();
@@ -305,6 +309,10 @@ llvm::Error PoCLModulePassManager::build(std::string PoclPipeline,
 }
 
 void PoCLModulePassManager::run(llvm::Module &Bitcode) {
+
+
+  std::cout <<"   PoCL (pocl_llvm_wg.cc) >> PoCLModulePassManager::run()" << std::endl;
+
   PM.run(Bitcode, MAM);
 #ifdef SEPARATE_OPTIMIZATION_FROM_POCL_PASSES
   populateModulePM(nullptr, (void *)&Bitcode, OptimizeLevel, SizeLevel,
@@ -346,6 +354,10 @@ llvm::Error TwoStagePoCLModulePassManager::build(
     cl_device_id Dev, const std::string &Stage1Pipeline, unsigned Stage1OLevel,
     unsigned Stage1SLevel, const std::string &Stage2Pipeline,
     unsigned Stage2OLevel, unsigned Stage2SLevel) {
+    
+
+  std::cout << "PoCL (pocl_llvm_wg.cc) >> TwoStagePoCLModulePassManger::Build()" << std::endl;
+    
 
   // Do not vectorize in the first round of (cleanup) optimizations to avoid
   // ending up with only vectorizing across the k-loops before the wi-loops have
@@ -379,6 +391,9 @@ llvm::Error TwoStagePoCLModulePassManager::build(
 }
 
 void TwoStagePoCLModulePassManager::run(llvm::Module &Bitcode) {
+
+  std::cout <<"\nPoCL (pocl_llvm_wg.cc) >> TwoStagePoCLModulePassManager::run()" << std::endl;
+
   Stage1.run(Bitcode);
   Stage2.run(Bitcode);
 }
@@ -395,32 +410,43 @@ enum class PassType {
 // for new PM, add them with proper nesting...  X(Y(...))
 static void addPass(std::vector<std::string> &Passes, std::string PassName,
                     PassType T = PassType::Function) {
+  
+  std::cout << "    PoCL (pocl_llvm_wg.cc) >> addPass() - ";
+
   std::string Temp;
   switch (T) {
   case PassType::Module:
     Passes.push_back(PassName);
+    
     break;
   case PassType::CGSCC:
     Temp = "cgscc(" + PassName + ")";
     Passes.push_back(Temp);
+    std::cout << "cgscc@";
     break;
   case PassType::Function:
     Temp = "function(" + PassName + ")";
     Passes.push_back(Temp);
+    std::cout << "function@";
     break;
   case PassType::Loop:
     Temp = "function(loop(" + PassName + "))";
     Passes.push_back(Temp);
+    std::cout << "function_loop@";
     break;
   default:
     POCL_ABORT("unknown pass type");
   }
+  std::cout << PassName << std::endl;
 }
 
 // for legacy PM, add each Analysis to the pass pipeline like a normal Pass;
 // for new PM, add them with proper nesting & analysis wrapper: X(Y(Require<>))
 static void addAnalysis(std::vector<std::string> &Passes, std::string PassName,
                         PassType T = PassType::Function) {
+
+  std::cout << "    PoCL (pocl_llvm_wg.cc) >> addAnalysis() - ";
+
   std::string Temp;
   PassName = "require<" + PassName + ">";
   switch (T) {
@@ -430,18 +456,22 @@ static void addAnalysis(std::vector<std::string> &Passes, std::string PassName,
   case PassType::CGSCC:
     Temp = "cgscc(" + PassName + ")";
     Passes.push_back(Temp);
+    std::cout << "cgscc@";
     break;
   case PassType::Function:
     Temp = "function(" + PassName + ")";
     Passes.push_back(Temp);
+    std::cout << "function@";
     break;
   case PassType::Loop:
     Temp = "function(loop(" + PassName + "))";
     Passes.push_back(Temp);
+    std::cout << "function_loop@";
     break;
   default:
     POCL_ABORT("unknown pass type");
   }
+  std::cout << PassName << std::endl;
 }
 
 // add the first part of the PoCL passes (up until 1st optimization in old PM)
@@ -482,6 +512,9 @@ static void addStage1PassesToPipeline(cl_device_id Dev,
      -optimize-wi-gvars after flatten-globals & always-inline passes
   */
 
+  std::cout << "  PoCL (pocl_llvm_wg.cc) >> addStage1PassesToPipeline()" << std::endl;
+
+
   // NOTE: if you add a new PoCL pass here,
   // don't forget to register it in registerPassBuilderPasses
   addPass(Passes, "fix-min-legal-vec-size", PassType::Module);
@@ -520,6 +553,9 @@ static void addStage1PassesToPipeline(cl_device_id Dev,
 // for old PM, also adds optimizations; for new PM it's handled separately
 static void addStage2PassesToPipeline(cl_device_id Dev,
                                       std::vector<std::string> &Passes) {
+  
+
+  std::cout << "\n  PoCL (pocl_llvm_wg.cc) >> addStage1PassesToPipeline()" << std::endl;
 
   // NOTE: if you add a new PoCL pass here,
   // don't forget to register it in registerPassBuilderPasses
@@ -643,6 +679,9 @@ static std::string convertPassesToPipelineString(const std::vector<std::string> 
 
 static bool runKernelCompilerPasses(cl_device_id Device, llvm::Module &Mod) {
 
+
+  std::cout << "PoCL (pocl_llvm_wg.cc) >> runKernelCompilerPasses()" << std::endl; 
+
   TwoStagePoCLModulePassManager PM;
   std::vector<std::string> Passes1;
   addStage1PassesToPipeline(Device, Passes1);
@@ -650,6 +689,10 @@ static bool runKernelCompilerPasses(cl_device_id Device, llvm::Module &Mod) {
   std::vector<std::string> Passes2;
   addStage2PassesToPipeline(Device, Passes2);
   std::string P2 = convertPassesToPipelineString(Passes2);
+
+  std::cout <<"\nStage 1 Passes: " <<P1 << std::endl;
+  std::cout <<"\nStage 2 Passes: " << P2 << std::endl;
+
 
   Error E = PM.build(Device, P1, 2, 0, P2, 3, 0);
   if (E) {

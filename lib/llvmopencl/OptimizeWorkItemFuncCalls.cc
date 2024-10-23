@@ -164,6 +164,10 @@ static bool optimizeWorkItemFuncCalls(Function &F) {
 llvm::PreservedAnalyses
 OptimizeWorkItemFuncCalls::run(llvm::Function &F,
                                llvm::FunctionAnalysisManager &AM) {
+
+
+  std::cout << "      PoCL-PASS (OptimizeWorkItemFuncCalls.cc) >> PreservedAnalyses OptimizeWorkItemFuncCalls::run() -- Function: " << F.getName().str() << std::endl;
+
   PreservedAnalyses PAChanged = PreservedAnalyses::none();
   PAChanged.preserve<WorkitemHandlerChooser>();
 

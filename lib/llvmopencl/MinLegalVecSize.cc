@@ -257,6 +257,10 @@ static bool fixMinVecSize(Module &M) {
 
 llvm::PreservedAnalyses FixMinVecSize::run(llvm::Module &M,
                                            llvm::ModuleAnalysisManager &AM) {
+  
+  std::cout << "      PoCL-PASS (MinLegalVecSize.cc) >> PreservedAnalyses FixMinVecSize::run() -- Module: " << M.getName().str() << std::endl;
+
+
   fixMinVecSize(M);
   return PreservedAnalyses::all();
 }

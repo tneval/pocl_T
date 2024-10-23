@@ -115,6 +115,9 @@ static bool flattenAll(Module &M) {
 
 llvm::PreservedAnalyses FlattenAll::run(llvm::Module &M,
                                         llvm::ModuleAnalysisManager &AM) {
+
+  std::cout << "      PoCL-PASS (Flatten.cc) >> PreservedAnalyses FlattenAll::run() -- Module: " << M.getName().str() << std::endl;
+
   PreservedAnalyses PAChanged = PreservedAnalyses::none();
   PAChanged.preserve<WorkitemHandlerChooser>();
   return flattenAll(M) ? PAChanged : PreservedAnalyses::all();

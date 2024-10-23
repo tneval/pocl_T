@@ -35,6 +35,9 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include "InlineKernels.hh"
 #include "LLVMUtils.h"
 #include "WorkitemHandlerChooser.h"
+
+#include "DebugHelpers.h"
+
 POP_COMPILER_DIAGS
 
 //#define DEBUG_INLINE_KERNELS
@@ -133,14 +136,39 @@ static bool inlineKernels(Function &F) {
   }
 #endif
 
+  if(changed){
+    std::cout << "something changed" << std::endl;
+  }else{
+    std::cout << "nothing changed" << std::endl;
+  }
+
+
   return changed;
 }
 
 llvm::PreservedAnalyses InlineKernels::run(llvm::Function &F,
                                            llvm::FunctionAnalysisManager &AM) {
+
+
+  std::cout << "      PoCL-PASS (InlineKernels.cc) >> PreservedAnalyses InlineKernels::run() -- Function: " << F.getName().str() << std::endl;
+
+  //dumpCFG(F, F.getName().str() + "_before_inline_kernels.dot", nullptr, nullptr);                         
+
+  //F.dump();
+
+
   PreservedAnalyses PAChanged = PreservedAnalyses::none();
   PAChanged.preserve<WorkitemHandlerChooser>();
-  return inlineKernels(F) ? PAChanged : PreservedAnalyses::all();
+
+
+  bool changed = inlineKernels(F);
+
+
+  //dumpCFG(F, F.getName().str() + "_after_inline_kernels.dot", nullptr, nullptr);
+
+  //F.dump();
+
+  return changed ? PAChanged : PreservedAnalyses::all();
 }
 
 REGISTER_NEW_FPASS(PASS_NAME, PASS_CLASS, PASS_DESC);
