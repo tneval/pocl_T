@@ -187,7 +187,8 @@ vload_half.cl
 vstore.cl
 vstore_half.cl
 vload_store_half_f16c.c
-wait_group_events.cl)
+wait_group_events.cl
+fallback_scheduler.c)
 
 #*********************************************************************
 

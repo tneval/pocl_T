@@ -56,7 +56,11 @@ private:
  
 bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
-    return true;
+    M = Func.getParent();
+    F = &Func;
+
+
+    return false;
 }
 
 
@@ -67,7 +71,6 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
         return llvm::PreservedAnalyses::all();
     }
     
-
     WorkitemHandlerType WIH = AM.getResult<WorkitemHandlerChooser>(F).WIH;
     if (WIH != WorkitemHandlerType::FALLBACK)
     {
@@ -88,12 +91,15 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
     PAChanged.preserve<VariableUniformityAnalysis>();
     PAChanged.preserve<WorkitemHandlerChooser>();
 
-    SimpleFallbackImpl WIL(DT, LI, PDT, VUA);
-
 
     llvm::errs() << F.getName() << "\n";
-    return llvm::PreservedAnalyses::all();
 
+    SimpleFallbackImpl WIL(DT, LI, PDT, VUA);
+
+    bool ret_val = WIL.runOnFunction(F);
+
+    return ret_val ? PAChanged : llvm::PreservedAnalyses::all();
+    //return llvm::PreservedAnalyses::all();
 }
 
 REGISTER_NEW_FPASS(PASS_NAME, PASS_CLASS, PASS_DESC);
