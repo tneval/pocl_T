@@ -18366,7 +18366,7 @@ int __ovld arm_dot_acc_sat(char4, char4, int);
 // Disable any extensions we may have enabled previously.
 #pragma OPENCL EXTENSION all : disable
 
-void _pocl_sched_work_item();
+int _pocl_sched_work_item();
 
 
 #undef __opencl_c_named_address_space_builtins
