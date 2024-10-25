@@ -764,12 +764,21 @@ bool WorkitemHandler::handleLocalMemAllocas() {
 /// get_group_id() calls. Expands the calls next to their users for easier
 /// analysis.
 void WorkitemHandler::handleWorkitemFunctions() {
+
+  // These will be deleted
   std::set<llvm::Instruction *> InstrsToDelete;
+
+
   for (Function::iterator BBI = K->begin(), BBE = K->end(); BBI != BBE; ++BBI) {
+
     llvm::BasicBlock &BB = *BBI;
+
     for (llvm::BasicBlock::iterator II = BB.begin(); II != BB.end(); ++II) {
+
       llvm::Instruction *Instr = &*II;
+
       llvm::CallInst *Call = dyn_cast<llvm::CallInst>(Instr);
+      
       if (Call == nullptr)
         continue;
 
