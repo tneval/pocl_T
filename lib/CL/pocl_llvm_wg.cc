@@ -1238,7 +1238,7 @@ static int pocl_llvm_run_pocl_passes(llvm::Module *Bitcode,
     std::string concat;
     const char **tmp = Device->device_aux_functions;
     while (*tmp != nullptr) {
-      std::cout << "########################" << *tmp << std::endl;
+      
       concat.append(*tmp);
       ++tmp;
       if (*tmp)

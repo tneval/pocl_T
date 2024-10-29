@@ -15,8 +15,12 @@ long __pocl_sched_work_item()
 
     next_id++;
 
+    if(next_id == WG_SIZE){
+        next_id = 0;
+    }
+
     // Implement bookkeeping here
-    //fprintf(stdout, "called from kernel, next_id is %d\n",next_id);
+    fprintf(stdout, ">> SCHEDULER: next_id is %d\n",next_id);
 
 
 

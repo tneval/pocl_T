@@ -64,8 +64,8 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 using namespace llvm;
 
 // #include <cstdio>
-#define DB_PRINT(...) printf("linker:" __VA_ARGS__)
-//#define DB_PRINT(...)
+//#define DB_PRINT(...) printf("linker:" __VA_ARGS__)
+#define DB_PRINT(...)
 
 namespace pocl {
 
