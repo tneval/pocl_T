@@ -1232,15 +1232,24 @@ static int pocl_llvm_run_pocl_passes(llvm::Module *Bitcode,
     WGMaxGridDimWidth = 0;
   }
 
+
+
   if (Device->device_aux_functions) {
     std::string concat;
     const char **tmp = Device->device_aux_functions;
     while (*tmp != nullptr) {
+      std::cout << "########################" << *tmp << std::endl;
       concat.append(*tmp);
       ++tmp;
       if (*tmp)
         concat.append(";");
     }
+    
+    setModuleStringMetadata(Bitcode, "device_aux_functions", concat.c_str());
+  }else{
+    std::string concat;
+    //concat.append("_pocl_sched_work_item");
+    std::cout << concat << std::endl;
     setModuleStringMetadata(Bitcode, "device_aux_functions", concat.c_str());
   }
 

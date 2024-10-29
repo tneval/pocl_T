@@ -34,6 +34,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 POP_COMPILER_DIAGS
 
 #include <set>
+#include <iostream>
 
 #define PASS_NAME "remove-barriers"
 #define PASS_CLASS pocl::RemoveBarrierCalls
@@ -62,6 +63,9 @@ static bool removeBarrierCalls(Function &F) {
   for (auto B : BarriersToRemove) {
     B->eraseFromParent();
   }
+
+  //std::cerr<< "AFTER REMOVEBARRIERCALLS\n";
+  //F.dump();
 
   return Changed;
 }

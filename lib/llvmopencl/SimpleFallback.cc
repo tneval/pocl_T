@@ -575,11 +575,13 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     handleWorkitemFunctions();
     
-    //F->dump();
+    F->dump();
 
 
     llvm::IRBuilder<> builder(&*(F->getEntryBlock().getFirstInsertionPt()));
     LocalIdXFirstVar = builder.CreateAlloca(ST, 0, ".pocl.local_id_x_init");
+
+    
 
     //std::cerr << "\n3 ###########################################\n" << std::endl;
     //F->dump();
@@ -593,14 +595,14 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
         ParallelRegion *Region = (*PRI);
 
-        //std::cerr << "### Adding context save/restore for PR: ";
-        //Region->dumpNames();
+        std::cerr << "### Adding context save/restore for PR: ";
+        Region->dumpNames();
 
        
 
         entryCounts[Region->entryBB()]++;
 
-        fixMultiRegionVariables(Region);
+        //fixMultiRegionVariables(Region);
     }
 
 
@@ -634,15 +636,91 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 
     llvm::errs() << F.getName() << "\n";
 
+    F.dump();
+
+
+    llvm::Module *M = F.getParent();
+
+
+    int added = 0;
+
+
+    std::vector<llvm::BasicBlock*> blockPointers;
+
     for (auto &BasicBlock : F) {
         for (auto &Instr : BasicBlock) {
+
+            if(added > 0){
+                continue;
+            }
             
             // Check for function calls
             if (auto *callInst = llvm::dyn_cast<llvm::CallInst>(&Instr)) {
                 
+                llvm::BasicBlock *currentBB = callInst->getParent();
+
                 llvm::Function *calledFunc = callInst->getCalledFunction();
 
-                if(calledFunc) {
+                if(calledFunc->getName().str() == "pocl.barrier") {
+                    
+                    if(currentBB->getName().str() == "entry.barrier" || currentBB->getName().str() == "exit.barrier"){
+                        continue;
+                    }
+
+                    llvm::IRBuilder<> builder(callInst);
+
+                    // Move insertion point to before after call, rather than after
+                    builder.SetInsertPoint(&*++builder.GetInsertPoint());
+
+                        //llvm::Function *schedFunc = M->getFunction("_pocl_sched_work_item");
+                    llvm::FunctionType *funcType = llvm::FunctionType::get(builder.getInt64Ty(),{},false);
+                    llvm::Function *schedFunc = M->getFunction("__pocl_sched_work_item");
+
+                    if (!schedFunc) {
+                        schedFunc = llvm::Function::Create(funcType,llvm::Function::ExternalLinkage,"__pocl_sched_work_item",M);
+                    }
+
+               
+                    llvm::Value *returnValue = builder.CreateCall(schedFunc);
+
+                    llvm::LLVMContext &context = F.getContext();
+
+   
+                    llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(F.getParent()->getGlobalVariable("_local_id_x"));
+                
+            
+                    builder.CreateStore(returnValue, localIdXPtr);
+
+                    // One of the conditional jump targets
+                    llvm::BasicBlock *nextBlock = BasicBlock.getNextNode();
+
+                    
+                    llvm::Value *localIdXValue = builder.CreateLoad(localIdXPtr->getValueType(), localIdXPtr, "loaded_local_id_x");
+                    
+                    llvm::Value *comparisonValue = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F.getContext()), 15);
+
+
+                    // Result of comparison; where to branch
+                    llvm::Value *comparisonResult = builder.CreateICmpSLT(localIdXValue, comparisonValue, "is_less_than");
+
+                    // This is the conditional jump target                    
+                    llvm::BasicBlock &entryBlock = F.getEntryBlock();
+
+
+                    llvm::BasicBlock *tmp = entryBlock.getNextNode();
+
+
+                    builder.CreateCondBr(comparisonResult, tmp, nextBlock);
+
+                    // Remove last branch as we just created new conditional one above
+                    llvm::Instruction *lastInst = currentBB->getTerminator();
+                    if (lastInst) {
+                        lastInst->eraseFromParent();  // This removes and deallocates the instruction
+                    }
+
+                    added ++;
+
+
                     llvm::errs() << "Found a call to: " << calledFunc->getName().str() << "\n";
                 } 
 
@@ -662,6 +740,8 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
                     callInst->eraseFromParent();
                 } */
             }
+
+            
         }
     }
         
@@ -684,9 +764,12 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 
     SimpleFallbackImpl WIL(DT, LI, PDT, VUA);
 
-    bool ret_val = WIL.runOnFunction(F);
-    
 
+    //dumpCFG(F, F.getName().str() + "_after_fallback.dot", nullptr,nullptr);
+
+    //bool ret_val = WIL.runOnFunction(F);
+    
+    F.dump();
    
 
     //return ret_val ? PAChanged : llvm::PreservedAnalyses::all();

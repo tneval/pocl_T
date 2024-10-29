@@ -55,6 +55,9 @@
 #include "pocl_llvm.h"
 #endif
 
+
+
+
 typedef struct
 {
   /* List of commands ready to be executed */
@@ -186,6 +189,7 @@ pocl_basic_probe(struct pocl_device_ops *ops)
 cl_int
 pocl_basic_init (unsigned j, cl_device_id device, const char* parameters)
 {
+
   pocl_basic_data_t *d;
   cl_int ret = CL_SUCCESS;
   int err;

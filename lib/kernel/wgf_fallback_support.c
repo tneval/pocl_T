@@ -1,20 +1,25 @@
 #include <stdio.h>
 
 
-int _pocl_sched_work_item()
+#define START_IDX 0
+#define WG_SIZE 16
+
+long __pocl_sched_work_item()
 {
+
+    //static int WIs[WG_SIZE] = {0};
+
+    long start_idx = START_IDX;
+
+    static long next_id = START_IDX;
+
+    next_id++;
+
     // Implement bookkeeping here
-    fprintf(stderr, "called from kernel\n");
+    //fprintf(stdout, "called from kernel, next_id is %d\n",next_id);
 
-    
 
-    /* unsigned int n_sg = get_num_sub_groups();
-    unsigned int sg_size = get_sub_group_size();
 
-    fprintf(stderr, "n_sg: %u\tsg_size: %u\n",n_sg,sg_size);
- */
-    int id = 1;
-
-    return id;
+    return next_id;
 
 }

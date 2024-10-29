@@ -1511,6 +1511,10 @@ SubCFGFormation::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
   if (!isKernelToProcess(F))
     return PreservedAnalyses::all();
 
+
+  std::cerr << "Before CBS\n";
+  F.dump();
+
   WorkitemHandlerType WIH = AM.getResult<pocl::WorkitemHandlerChooser>(F).WIH;
   if (WIH != WorkitemHandlerType::CBS)
     return PreservedAnalyses::all();
@@ -1540,6 +1544,10 @@ SubCFGFormation::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
 
   PreservedAnalyses PAChanged = PreservedAnalyses::none();
   PAChanged.preserve<WorkitemHandlerChooser>();
+
+  std::cerr << "After CBS\n";
+  F.dump();
+
   return PAChanged;
 }
 

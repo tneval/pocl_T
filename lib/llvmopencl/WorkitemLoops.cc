@@ -160,6 +160,9 @@ private:
 
 bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
 
+  std::cerr<<"before WILOOP\n";
+  Func.dump();
+
   M = Func.getParent();
   F = &Func;
   Initialize(cast<Kernel>(&Func));
@@ -195,6 +198,11 @@ bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
   std::cerr << "### After WILoops:\n";
   Func.dump();
 #endif
+
+
+  std::cerr<<"after WILOOP\n";
+  Func.dump();
+
   return Changed;
 }
 

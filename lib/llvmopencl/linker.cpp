@@ -64,8 +64,8 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 using namespace llvm;
 
 // #include <cstdio>
-// #define DB_PRINT(...) printf("linker:" __VA_ARGS__)
-#define DB_PRINT(...)
+#define DB_PRINT(...) printf("linker:" __VA_ARGS__)
+//#define DB_PRINT(...)
 
 namespace pocl {
 
@@ -189,6 +189,7 @@ find_called_functions(llvm::Function *F,
       }
     }
   }
+
 }
 
 // Copies one function from one module to another
@@ -480,6 +481,7 @@ int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
       DeclaredFunctions.insert(*Func++);
     }
   }
+
 
   llvm::Module::iterator fi, fe;
 
