@@ -15,8 +15,9 @@ long __pocl_sched_work_item()
 
     next_id++;
 
-    if(next_id == WG_SIZE){
-        next_id = 0;
+    // Temp solution for now
+    if(next_id == WG_SIZE+1){
+        next_id = 1;
     }
 
     // Implement bookkeeping here

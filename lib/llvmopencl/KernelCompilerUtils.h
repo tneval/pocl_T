@@ -32,6 +32,10 @@
 // Generates the name for the global magic variable for the local size.
 #define LS_G_NAME(DIM) (std::string("_local_size_") + (char)('x' + DIM))
 
+
+#define NEXT_WI "_next_wi_x"
+
+
 // The name of the mangled get_global_id() builtin function.
 #define GID_BUILTIN_NAME "_Z13get_global_idj"
 // The name of the mangled get_global_size() builtin function.

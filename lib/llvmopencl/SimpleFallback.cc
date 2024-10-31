@@ -24,6 +24,7 @@ namespace pocl{
 static constexpr const char LocalIdGlobalNameX[] = "_local_id_x";
 static constexpr const char LocalIdGlobalNameY[] = "_local_id_y";
 static constexpr const char LocalIdGlobalNameZ[] = "_local_id_z";
+static constexpr const char NextWI[] = "_next_wi_x";
 
 
 
@@ -31,26 +32,37 @@ static constexpr const char LocalIdGlobalNameZ[] = "_local_id_z";
 // This should initialize local id to 0
 void insertLocalIdInit_(llvm::BasicBlock *Entry) {
 
-  llvm::IRBuilder<> Builder(Entry, Entry->getFirstInsertionPt());
+    llvm::IRBuilder<> Builder(Entry, Entry->getFirstInsertionPt());
 
-  llvm::Module *M = Entry->getParent()->getParent();
+    llvm::Module *M = Entry->getParent()->getParent();
 
-  unsigned long address_bits;
-  getModuleIntMetadata(*M, "device_address_bits", address_bits);
+    unsigned long address_bits;
+    getModuleIntMetadata(*M, "device_address_bits", address_bits);
 
-  llvm::Type *SizeT = llvm::IntegerType::get(M->getContext(), address_bits);
+    llvm::Type *SizeT = llvm::IntegerType::get(M->getContext(), address_bits);
 
-  llvm::GlobalVariable *GVX = M->getGlobalVariable(LocalIdGlobalNameX);
-  if (GVX != NULL)
-    Builder.CreateStore(llvm::ConstantInt::getNullValue(SizeT), GVX);
+    llvm::GlobalVariable *GVX = M->getGlobalVariable(LocalIdGlobalNameX);
+    if (GVX != NULL)
+        Builder.CreateStore(llvm::ConstantInt::getNullValue(SizeT), GVX);
 
-  llvm::GlobalVariable *GVY = M->getGlobalVariable(LocalIdGlobalNameY);
-  if (GVY != NULL)
-    Builder.CreateStore(llvm::ConstantInt::getNullValue(SizeT), GVY);
+    llvm::GlobalVariable *GVY = M->getGlobalVariable(LocalIdGlobalNameY);
+    if (GVY != NULL)
+        Builder.CreateStore(llvm::ConstantInt::getNullValue(SizeT), GVY);
 
-  llvm::GlobalVariable *GVZ = M->getGlobalVariable(LocalIdGlobalNameZ);
-  if (GVZ != NULL)
-    Builder.CreateStore(llvm::ConstantInt::getNullValue(SizeT), GVZ);
+    llvm::GlobalVariable *GVZ = M->getGlobalVariable(LocalIdGlobalNameZ);
+    if (GVZ != NULL)
+        Builder.CreateStore(llvm::ConstantInt::getNullValue(SizeT), GVZ);
+
+
+
+    // This is "iterator". Don't know if this is the proper place to create it.
+    llvm::GlobalVariable *NWI = M->getGlobalVariable(NextWI);
+    if(!NWI){
+        // If it doesn't exist, define it
+        NWI = new llvm::GlobalVariable(*M,SizeT,false,llvm::GlobalValue::ExternalLinkage,llvm::ConstantInt::getNullValue(SizeT),NEXT_WI);
+    }
+
+    Builder.CreateStore(llvm::ConstantInt::getNullValue(SizeT), NWI);
 }
 
 
@@ -68,7 +80,7 @@ public:
 
 protected:
     llvm::Value *getLinearWIIndexInRegion(llvm::Instruction *Instr) override;
-    //llvm::Instruction *getLocalIdInRegion(llvm::Instruction *Instr,size_t Dim) override;
+    llvm::Instruction *getLocalIdInRegion(llvm::Instruction *Instr,size_t Dim) override;
 
 
 // TODO: Check what is actually needed, these are from wiloops
@@ -129,6 +141,23 @@ private:
     //bool processFunction(llvm::Function &F);
 
 };
+
+
+
+// Overrides virtual method in WorkitemHandler class
+llvm::Instruction *SimpleFallbackImpl::getLocalIdInRegion(llvm::Instruction *Instr, size_t Dim) {
+    
+    ParallelRegion *ParRegion = regionOfBlock(Instr->getParent());
+    
+    if (ParRegion != nullptr) {
+        return ParRegion->getOrCreateIDLoad(LID_G_NAME(Dim));
+    }
+    llvm::IRBuilder<> Builder(Instr);
+
+    return Builder.CreateLoad(ST, LocalIdGlobals[Dim]);
+}
+
+
 
 
 /// Returns the context array (alloca) for the given \param Inst, creates it if
@@ -291,9 +320,9 @@ void SimpleFallbackImpl::addContextSaveRestore(llvm::Instruction *Def) {
             ContextRestoreLocation = IncomingBB->getTerminator();
         }
         
-        //llvm::Value *LoadedValue = addContextRestore(UserI, Alloca, Def->getType(), PaddingAdded, ContextRestoreLocation, llvm::isa<llvm::AllocaInst>(Def));
+        llvm::Value *LoadedValue = addContextRestore(UserI, Alloca, Def->getType(), PaddingAdded, ContextRestoreLocation, llvm::isa<llvm::AllocaInst>(Def));
         
-        //UserI->replaceUsesOfWith(Def, LoadedValue);
+        UserI->replaceUsesOfWith(Def, LoadedValue);
     
         //std::cerr << "### done, the user was converted to:" << std::endl;
         //UserI->dump();
@@ -389,11 +418,6 @@ void SimpleFallbackImpl::fixMultiRegionVariables(ParallelRegion *Region) {
 
         addContextSaveRestore(*I);
   }
-
-
-
-
-
 }
 
 
@@ -595,26 +619,263 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(1), ST)),
     llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(2), ST))};
 
-    //std::cerr << "\n 1###########################################\n" << std::endl;
-    //F->dump();
-
     TempInstructionIndex = 0;
 
+    
 
     // Deletes parallelregions
     releaseParallelRegions();
 
     K->getParallelRegions(LI, &OriginalParallelRegions);
 
+    handleWorkitemFunctions();
+
+    llvm::IRBuilder<> builder2(&*(Func.getEntryBlock().getFirstInsertionPt()));
+    LocalIdXFirstVar = builder2.CreateAlloca(ST, 0, ".pocl.local_id_x_init");
+
+    for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
+        ParallelRegion *Region = (*PRI);
+
+        std::cerr << "### Adding context save/restore for PR: ";
+        Region->dumpNames();
+
+        //entryCounts[Region->entryBB()]++;
+
+        fixMultiRegionVariables(Region);
+    }
+
+    
+    llvm::Module *M = Func.getParent();
+
+
+    int added = 0;
+
+    llvm::BasicBlock *Entry = &Func.getEntryBlock();
+    insertLocalIdInit_(Entry);
+
+    // Store pointers here
+    // Blocks where we jump back to
+    std::vector<llvm::BasicBlock*> loopBlocks;
+    // Blocks where we should proceed next
+    std::vector<llvm::BasicBlock*> procBlocks;
+
+
+    for (auto &BasicBlock : Func) {
+        for (auto &Instr : BasicBlock) {
+
+            
+            // Check for function calls
+            if (auto *callInst = llvm::dyn_cast<llvm::CallInst>(&Instr)) {
+                
+                llvm::BasicBlock *currentBB = callInst->getParent();
+
+                llvm::Function *calledFunc = callInst->getCalledFunction();
+
+                if(calledFunc->getName().str() == "pocl.barrier") {
+            
+                    // Do not loop the entry and exit
+                    /* if(currentBB->getName().str() == "exit.barrier"){
+                        // We cant skip this
+                        //continue;
+                    } */
+
+                    if(currentBB->getName().str() == "entry.barrier"){
+                        
+                        // Store next looping block, dont loop back to barrier.entry, but entry instead
+                        loopBlocks.push_back(currentBB->getNextNode());
+
+                        continue;
+
+                    }else{
+                        // This will be the next block after barrier
+                        if(currentBB->getName().str() != "exit.barrier"){
+                            procBlocks.push_back(currentBB->getNextNode());
+                        }
+                    }
+
+                    std::cout << "popping next loop block: size: " << loopBlocks.size() << std::endl;
+                    // Get next block target and remove it from the list
+                    llvm::BasicBlock* loopBlock = loopBlocks.back();
+                    loopBlocks.pop_back();
+
+
+                    llvm::IRBuilder<> builder(callInst);
+
+                    // Move insertion point to before after call, rather than after
+                    builder.SetInsertPoint(&*++builder.GetInsertPoint());
+
+                    // Create function call to __pocl_sched_work_item to retrieve next WI id
+                    llvm::FunctionType *funcType = llvm::FunctionType::get(builder.getInt64Ty(),{},false);
+                    llvm::Function *schedFunc = M->getFunction("__pocl_sched_work_item");
+
+                    if (!schedFunc) {
+                        schedFunc = llvm::Function::Create(funcType,llvm::Function::ExternalLinkage,"__pocl_sched_work_item",M);
+                    }
+
+                    // Retrieve the return value, i.e. WI id
+                    llvm::Value *returnValue = builder.CreateCall(schedFunc);
+
+                    llvm::LLVMContext &context = Func.getContext();
+
+                   
+                    llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_id_x"));
+
+                    // Use this temp iterator instead of _local_id_x
+                    llvm::GlobalVariable *nextWiptr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_next_wi_x"));
+                    
+                    // Here 16 is hardcoded for now, change.
+                    llvm::Value *compVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(Func.getContext()), 16);
+
+                    // Result of comparison; check if WI id from scheduler is less than max wg id
+                    llvm::Value *comparisonIter = builder.CreateICmpSLT(returnValue, compVal, "check_iterator");
+
+
+                    //llvm::Value *localIdXValue = builder.CreateLoad(localIdXPtr->getValueType(), localIdXPtr, "loaded_local_id_x");
+
+                    llvm::Value *selectedValue = builder.CreateSelect(comparisonIter, returnValue ,builder.getInt64(0));
+
+
+                    // Store new WI id            
+                    builder.CreateStore(returnValue, nextWiptr);
+
+                    
+                    
+
+
+
+                    // Store new WI id            
+                    builder.CreateStore(selectedValue, localIdXPtr);
+
+
+                    // NOTE: THIS IS NEEDED IN THE VECTOR ADDITION AT LEAST
+                    llvm::GlobalVariable *globalIdXPtr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_global_id_x"));
+                    builder.CreateStore(selectedValue, globalIdXPtr);
+
+                    // One of the conditional jump targets. This is where to jump after all WIs have cleared the barrier
+                    //llvm::BasicBlock *nextBlock = BasicBlock.getNextNode();
+
+                    
+                    //llvm::Value *localIdXValue = builder.CreateLoad(localIdXPtr->getValueType(), localIdXPtr, "loaded_local_id_x");
+                    
+                    // Here 16 is hardcoded for now, change.
+                    //llvm::Value *comparisonValue = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F.getContext()), 15);
+
+
+                    // Result of comparison; check if WI id from scheduler is less than max wg id
+                    //llvm::Value *comparisonResult = builder.CreateICmpSLT(localIdXValue, comparisonValue, "is_less_than");
+
+
+                    // This is another jump target when we loop back
+                    // NOTE: FOR NOW THIS IS HARDCODED to be next from the entry. CHANGE                  
+                    //llvm::BasicBlock &entryBlock = F.getEntryBlock();
+                    //llvm::BasicBlock *tmp = entryBlock.getNextNode();
+
+
+                    bool isExitBlock = false;
+
+                    // For now, check if last instruction is ret void. Don't know if this is enough to deduce terminal block.
+                    // There might be several like this, but does it matter?
+                    llvm::Instruction* lastOfBlock = currentBB->getTerminator();
+
+                    if(auto* retInst = llvm::dyn_cast<llvm::ReturnInst>(lastOfBlock)){
+                        if(retInst->getReturnValue() == nullptr){
+                            isExitBlock = true;
+                        }
+                    }
+
+
+                    if(!isExitBlock){
+                    //if(currentBB->getName().str() != "exit.barrier"){
+                        std::cout << "Popping next proc block: size: " << procBlocks.size() << std::endl;
+                        llvm::BasicBlock* nextBlock = procBlocks.back();
+                        procBlocks.pop_back();
+
+
+                        // Next loop block will be the one that we jump into now
+                        loopBlocks.push_back(nextBlock);
+
+                        // create branch instr
+                        builder.CreateCondBr(comparisonIter, loopBlock, nextBlock);
+
+                        // Remove last branch as we just created new conditional one above
+                        llvm::Instruction *lastInst = currentBB->getTerminator();
+                        if (lastInst) {
+                            lastInst->eraseFromParent();  // This removes and deallocates the instruction
+                        }
+                    // Handle exit barrier
+                    }else{
+
+
+
+
+                        //Create new exit block that only contains ret void
+                        llvm::BasicBlock* return_block = llvm::BasicBlock::Create(context, "return_block", &Func);
+                        llvm::IRBuilder<> bldr(return_block);
+                        bldr.CreateRetVoid();
+
+                        // Get handle to "old" ret void instr
+                        llvm::IRBuilder<> InsertBuilder(currentBB->getTerminator());
+
+
+                       
+                        InsertBuilder.CreateCondBr(comparisonIter, loopBlock,return_block);
+
+                        llvm::Instruction* last_ret = currentBB->getTerminator();
+
+                        last_ret->eraseFromParent();
+
+
+
+                    }
+
+
+                    
+
+                    
+
+                    // Just to add first loop
+                    //added ++;
+
+
+                    llvm::errs() << "Found a call to: " << calledFunc->getName().str() << "\n";
+                } 
+
+                //llvm::errs() << "Found a call to: " << callInst->getName().str() << "\n";
+                
+               
+            }
+
+            
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+    
+    //std::cerr << "\n 1###########################################\n" << std::endl;
+    //F->dump();
+
+    
+
+
+    
+
     //std::cerr << "\n2 ###########################################\n" << std::endl;
 
-    handleWorkitemFunctions();
+    //handleWorkitemFunctions();
     
-    F->dump();
+    //F->dump();
 
 
-    llvm::IRBuilder<> builder(&*(F->getEntryBlock().getFirstInsertionPt()));
-    LocalIdXFirstVar = builder.CreateAlloca(ST, 0, ".pocl.local_id_x_init");
+    /* llvm::IRBuilder<> builder(&*(F->getEntryBlock().getFirstInsertionPt()));
+    LocalIdXFirstVar = builder.CreateAlloca(ST, 0, ".pocl.local_id_x_init"); */
 
     
 
@@ -627,7 +888,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
      detect diverging regions that need to be peeled. */
     std::map<llvm::BasicBlock*, int> entryCounts;
 
-    for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
+    /* for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
         ParallelRegion *Region = (*PRI);
 
         std::cerr << "### Adding context save/restore for PR: ";
@@ -638,7 +899,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         entryCounts[Region->entryBB()]++;
 
         //fixMultiRegionVariables(Region);
-    }
+    } */
 
 
 
@@ -657,6 +918,9 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
         return llvm::PreservedAnalyses::all();
     }
 
+
+    dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
+
     
     WorkitemHandlerType WIH = AM.getResult<WorkitemHandlerChooser>(F).WIH;
 
@@ -674,7 +938,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
     F.dump();
 
 
-    llvm::Module *M = F.getParent();
+    /* llvm::Module *M = F.getParent();
 
 
     int added = 0;
@@ -686,14 +950,17 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
     // Blocks where we jump back to
     std::vector<llvm::BasicBlock*> loopBlocks;
     // Blocks where we should proceed next
-    std::vector<llvm::BasicBlock*> procBlocks;
+    std::vector<llvm::BasicBlock*> procBlocks; */
 
-    for (auto &BasicBlock : F) {
+
+    
+
+
+    
+
+    /* for (auto &BasicBlock : F) {
         for (auto &Instr : BasicBlock) {
 
-            /* if(added > 0){
-                continue;
-            } */
             
             // Check for function calls
             if (auto *callInst = llvm::dyn_cast<llvm::CallInst>(&Instr)) {
@@ -705,12 +972,9 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
                 if(calledFunc->getName().str() == "pocl.barrier") {
             
                     // Do not loop the entry and exit
-                    //if(currentBB->getName().str() == "entry.barrier" || currentBB->getName().str() == "exit.barrier"){
-
                     if(currentBB->getName().str() == "exit.barrier"){
                         continue;
                     }
-
 
                     if(currentBB->getName().str() == "entry.barrier"){
                         
@@ -720,14 +984,13 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
                         continue;
 
                     }else{
-
+                        // This will be the next block after barrier
                         if(currentBB->getName().str() != "exit.barrier"){
                             procBlocks.push_back(currentBB->getNextNode());
                         }
-
                     }
 
-                    std::cout << "popping next loop block: " << loopBlocks.size() << std::endl;
+                    std::cout << "popping next loop block: size: " << loopBlocks.size() << std::endl;
                     // Get next block target and remove it from the list
                     llvm::BasicBlock* loopBlock = loopBlocks.back();
                     loopBlocks.pop_back();
@@ -751,23 +1014,47 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 
                     llvm::LLVMContext &context = F.getContext();
 
+                   
                     llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(F.getParent()->getGlobalVariable("_local_id_x"));
-                
+
+                    // Use this temp iterator instead of _local_id_x
+                    llvm::GlobalVariable *nextWiptr = llvm::cast<llvm::GlobalVariable>(F.getParent()->getGlobalVariable("_next_wi_x"));
+                    
+                    // Here 16 is hardcoded for now, change.
+                    llvm::Value *compVal = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F.getContext()), 16);
+
+                    // Result of comparison; check if WI id from scheduler is less than max wg id
+                    llvm::Value *comparisonIter = builder.CreateICmpSLT(returnValue, compVal, "check_iterator");
+
+
+                    //llvm::Value *localIdXValue = builder.CreateLoad(localIdXPtr->getValueType(), localIdXPtr, "loaded_local_id_x");
+
+                    llvm::Value *selectedValue = builder.CreateSelect(comparisonIter, returnValue ,builder.getInt64(0));
+
+
                     // Store new WI id            
-                    builder.CreateStore(returnValue, localIdXPtr);
+                    builder.CreateStore(returnValue, nextWiptr);
+
+                    
+                    
+
+
+
+                    // Store new WI id            
+                    builder.CreateStore(selectedValue, localIdXPtr);
 
                     // One of the conditional jump targets. This is where to jump after all WIs have cleared the barrier
                     //llvm::BasicBlock *nextBlock = BasicBlock.getNextNode();
 
                     
-                    llvm::Value *localIdXValue = builder.CreateLoad(localIdXPtr->getValueType(), localIdXPtr, "loaded_local_id_x");
+                    //llvm::Value *localIdXValue = builder.CreateLoad(localIdXPtr->getValueType(), localIdXPtr, "loaded_local_id_x");
                     
                     // Here 16 is hardcoded for now, change.
-                    llvm::Value *comparisonValue = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F.getContext()), 15);
+                    //llvm::Value *comparisonValue = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F.getContext()), 15);
 
 
                     // Result of comparison; check if WI id from scheduler is less than max wg id
-                    llvm::Value *comparisonResult = builder.CreateICmpSLT(localIdXValue, comparisonValue, "is_less_than");
+                    //llvm::Value *comparisonResult = builder.CreateICmpSLT(localIdXValue, comparisonValue, "is_less_than");
 
 
                     // This is another jump target when we loop back
@@ -776,7 +1063,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
                     //llvm::BasicBlock *tmp = entryBlock.getNextNode();
 
 
-                    std::cout << "Popping next: " << procBlocks.size() << std::endl;
+                    std::cout << "Popping next proc block: size: " << procBlocks.size() << std::endl;
                     llvm::BasicBlock* nextBlock = procBlocks.back();
                     procBlocks.pop_back();
 
@@ -785,7 +1072,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
                     loopBlocks.push_back(nextBlock);
 
                     // create branch instr
-                    builder.CreateCondBr(comparisonResult, loopBlock, nextBlock);
+                    builder.CreateCondBr(comparisonIter, loopBlock, nextBlock);
 
                     // Remove last branch as we just created new conditional one above
                     llvm::Instruction *lastInst = currentBB->getTerminator();
@@ -804,24 +1091,12 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 
                 //llvm::errs() << "Found a call to: " << callInst->getName().str() << "\n";
                 
-                /* if (callInst->getCalledFunction()->getName() == "__switch_to_work_item") {
-                    llvm::IRBuilder<> builder(callInst);
-
-                    // Context save (example)
-                    llvm::Value *contextSave = builder.CreateAlloca(llvm::Type::getInt32Ty(Func.getContext()), nullptr, "context_save");
-                    builder.CreateStore(callInst->getOperand(0), contextSave);
-
-                    // Context restore (example)
-                    llvm::Value *contextRestore = builder.CreateLoad(contextSave, "context_restore");
-
-                    // Remove the original function call
-                    callInst->eraseFromParent();
-                } */
+               
             }
 
             
         }
-    }
+    } */
         
 
     
@@ -845,10 +1120,11 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 
     //dumpCFG(F, F.getName().str() + "_after_fallback.dot", nullptr,nullptr);
 
-    //bool ret_val = WIL.runOnFunction(F);
+    bool ret_val = WIL.runOnFunction(F);
     
     F.dump();
    
+    dumpCFG(F, F.getName().str() + "_after_fallback.dot", nullptr,nullptr);
 
     //return ret_val ? PAChanged : llvm::PreservedAnalyses::all();
     

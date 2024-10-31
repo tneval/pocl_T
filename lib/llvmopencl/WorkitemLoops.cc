@@ -203,6 +203,12 @@ bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
   std::cerr<<"after WILOOP\n";
   Func.dump();
 
+
+  dumpCFG(Func, Func.getName().str() + "_after_wiloops.dot", nullptr,nullptr);
+
+
+
+
   return Changed;
 }
 

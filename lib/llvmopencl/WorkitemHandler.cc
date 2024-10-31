@@ -618,6 +618,9 @@ WorkitemHandler::createContextArrayGEP(llvm::AllocaInst *CtxArrayAlloca,
                                        llvm::Instruction *Before,
                                        bool AlignPadding) {
 
+
+
+  std::cout << "createContextArrayGEP\n";
   std::vector<llvm::Value *> GEPArgs;
   if (WGDynamicLocalSize) {
     GEPArgs.push_back(getLinearWIIndexInRegion(Before));
@@ -628,9 +631,18 @@ WorkitemHandler::createContextArrayGEP(llvm::AllocaInst *CtxArrayAlloca,
     GEPArgs.push_back(getLocalIdInRegion(Before, 0));
   }
 
+  std::cout << "GEPArgs size: " << GEPArgs.size() << std::endl;
+  for(auto inst : GEPArgs){
+    inst->print(llvm::outs());
+  }
+
+
+  std::cout << "createContextArrayGEP2\n";
+
   if (AlignPadding)
-    GEPArgs.push_back(
-        ConstantInt::get(Type::getInt32Ty(CtxArrayAlloca->getContext()), 0));
+    GEPArgs.push_back(ConstantInt::get(Type::getInt32Ty(CtxArrayAlloca->getContext()), 0));
+
+  std::cout << "createContextArrayGEP3\n";
 
   IRBuilder<> Builder(Before);
 #if LLVM_MAJOR < 15
@@ -638,6 +650,14 @@ WorkitemHandler::createContextArrayGEP(llvm::AllocaInst *CtxArrayAlloca,
       Builder.CreateGEP(CtxArrayAlloca->getType()->getPointerElementType(),
                         CtxArrayAlloca, GEPArgs));
 #else
+
+  if(CtxArrayAlloca == NULL){
+    std::cout << "CtxArrayAlloca is NULL\n";
+  }
+
+  CtxArrayAlloca->getAllocatedType()->print(llvm::outs());
+  
+
   llvm::GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Builder.CreateGEP(
       CtxArrayAlloca->getAllocatedType(), CtxArrayAlloca, GEPArgs));
 #endif
