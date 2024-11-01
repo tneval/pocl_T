@@ -92,6 +92,7 @@ POCL_BUILTIN_PREFIX(work_group_barrier) (cl_mem_fence_flags flags, memory_scope 
   barrier (flags);
 }
 
+
 void _CL_OVERLOADABLE
 POCL_BUILTIN_PREFIX(atomic_work_item_fence) (cl_mem_fence_flags flags, memory_order order,
                         memory_scope scope) __attribute__ ((noduplicate))

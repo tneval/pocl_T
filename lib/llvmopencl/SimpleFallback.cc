@@ -605,6 +605,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     M = Func.getParent();
     F = &Func;
 
+
+    M->print(llvm::outs(), nullptr);
+
+
     //M->dump();
 
     Initialize(llvm::cast<Kernel>(&Func));
@@ -838,7 +842,13 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
 
                     llvm::errs() << "Found a call to: " << calledFunc->getName().str() << "\n";
-                } 
+                }else if(calledFunc->getName().str() == "pocl.subgroup_barrier"){
+
+                    
+
+
+
+                }
 
                 //llvm::errs() << "Found a call to: " << callInst->getName().str() << "\n";
                 

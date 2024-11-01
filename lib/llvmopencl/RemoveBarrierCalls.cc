@@ -25,6 +25,7 @@ IGNORE_COMPILER_WARNING("-Wmaybe-uninitialized")
 #include <llvm/ADT/Twine.h>
 POP_COMPILER_DIAGS
 IGNORE_COMPILER_WARNING("-Wunused-parameter")
+#include "SubgroupBarrier.h"
 #include "Barrier.h"
 #include "LLVMUtils.h"
 #include "RemoveBarrierCalls.h"
@@ -54,6 +55,10 @@ static bool removeBarrierCalls(Function &F) {
     for (BasicBlock::iterator BI = I->begin(), BE = I->end(); BI != BE; ++BI) {
       Instruction *Instr = dyn_cast<Instruction>(BI);
       if (llvm::isa<Barrier>(Instr)) {
+        BarriersToRemove.insert(Instr);
+
+      // Add also subgroupbarriers for removal
+      }else if(llvm::isa<SubgroupBarrier>(Instr)){
         BarriersToRemove.insert(Instr);
       }
     }

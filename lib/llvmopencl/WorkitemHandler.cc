@@ -631,18 +631,18 @@ WorkitemHandler::createContextArrayGEP(llvm::AllocaInst *CtxArrayAlloca,
     GEPArgs.push_back(getLocalIdInRegion(Before, 0));
   }
 
-  std::cout << "GEPArgs size: " << GEPArgs.size() << std::endl;
+  /* std::cout << "GEPArgs size: " << GEPArgs.size() << std::endl;
   for(auto inst : GEPArgs){
     inst->print(llvm::outs());
-  }
+  } */
 
 
-  std::cout << "createContextArrayGEP2\n";
+  //std::cout << "createContextArrayGEP2\n";
 
   if (AlignPadding)
     GEPArgs.push_back(ConstantInt::get(Type::getInt32Ty(CtxArrayAlloca->getContext()), 0));
 
-  std::cout << "createContextArrayGEP3\n";
+  //std::cout << "createContextArrayGEP3\n";
 
   IRBuilder<> Builder(Before);
 #if LLVM_MAJOR < 15
@@ -651,9 +651,9 @@ WorkitemHandler::createContextArrayGEP(llvm::AllocaInst *CtxArrayAlloca,
                         CtxArrayAlloca, GEPArgs));
 #else
 
-  if(CtxArrayAlloca == NULL){
+  /* if(CtxArrayAlloca == NULL){
     std::cout << "CtxArrayAlloca is NULL\n";
-  }
+  } */
 
   CtxArrayAlloca->getAllocatedType()->print(llvm::outs());
   
