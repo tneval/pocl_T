@@ -1512,8 +1512,8 @@ SubCFGFormation::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
     return PreservedAnalyses::all();
 
 
-  std::cerr << "Before CBS\n";
-  F.dump();
+  //std::cerr << "Before CBS\n";
+  //F.dump();
 
   WorkitemHandlerType WIH = AM.getResult<pocl::WorkitemHandlerChooser>(F).WIH;
   if (WIH != WorkitemHandlerType::CBS)
@@ -1545,8 +1545,8 @@ SubCFGFormation::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
   PreservedAnalyses PAChanged = PreservedAnalyses::none();
   PAChanged.preserve<WorkitemHandlerChooser>();
 
-  std::cerr << "After CBS\n";
-  F.dump();
+  //std::cerr << "After CBS\n";
+  //F.dump();
 
   return PAChanged;
 }

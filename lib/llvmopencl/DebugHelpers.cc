@@ -36,6 +36,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
+#include "SubgroupBarrier.h"
 #include "Barrier.h"
 #include "DebugHelpers.h"
 #include "LLVMUtils.h"
@@ -74,6 +75,9 @@ static void printBasicBlock(
   s << "[shape=rect,style=";
   if (Barrier::hasBarrier(b))
     s << "dotted";
+  
+  else if(SubgroupBarrier::hasSGBarrier(b))
+    s << "dashed";
   else
     s << "solid";
 
@@ -99,6 +103,9 @@ static void printBasicBlock(
 
         if (isa<Barrier>(instr)) {
           s << "BARRIER\\n";
+          previousNonBarriers = 0;
+        }else if(isa<SubgroupBarrier>(instr)){
+          s <<"SUBGROUP-BARRIER\n";
           previousNonBarriers = 0;
         } else if (isa<BranchInst>(instr)) {
           s << "branch\\n";

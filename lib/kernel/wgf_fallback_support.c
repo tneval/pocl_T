@@ -185,12 +185,18 @@ void __pocl_sg_barrier_reached(int local_id_x)
 long __pocl_sched_work_item()
 {
 
+
+
     long next_wi = 0;
 
     for(int i = 0; i< n_subgroups; i++){
 
         if(sg_wi_counter[i] < sub_group_size){
             next_wi = i*sub_group_size + sg_wi_counter[i];
+
+            fprintf(stdout, "SCHEDULER>> NEXT WI :%ld\n",next_wi);
+
+
             break;
         }
     }
