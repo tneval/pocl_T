@@ -1448,7 +1448,7 @@ static const cl_image_format supported_image_formats[] = {
 
 
 
-static const char *basic_native_device_aux_funcs[] = {"__pocl_sched_work_item","__pocl_sched_init", "__pocl_barrier_reached", NULL};
+static const char *basic_native_device_aux_funcs[] = {"__pocl_sched_work_item","__pocl_sched_init", "__pocl_barrier_reached", "__pocl_sg_barrier_reached", NULL};
 
 void
 pocl_init_default_device_infos (cl_device_id dev,

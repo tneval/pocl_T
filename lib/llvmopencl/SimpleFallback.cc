@@ -637,7 +637,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::IRBuilder<> builder2(&*(Func.getEntryBlock().getFirstInsertionPt()));
     LocalIdXFirstVar = builder2.CreateAlloca(ST, 0, ".pocl.local_id_x_init");
 
-    /* for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
+    for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
         ParallelRegion *Region = (*PRI);
 
         std::cerr << "### Adding context save/restore for PR: ";
@@ -648,7 +648,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         fixMultiRegionVariables(Region);
     }
 
-     */
+    
     llvm::Module *M = Func.getParent();
 
 
@@ -680,7 +680,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     builderInit.CreateCall(schedFuncI, {sg_size,x_size});
 
     //F->dump();
-    M->dump();
+    //M->dump();
 
     // Store pointers here
     // Blocks where we jump back to
@@ -745,9 +745,9 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
                     llvm::Function *sg_id_f = M->getFunction("_Z16get_sub_group_idv");
                     llvm::Value *sg_id = builder.CreateCall(sg_id_f);
                     sg_id->setName("sg_id_for_scheduler"); */
-
+                    llvm::Type *uType = llvm::Type::getInt32Ty(M->getContext());
                     llvm::GlobalVariable *localx = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_id_x"));
-                    llvm::Value *local_x = builderInit.CreateLoad(uType,xSizePtr,"local_x");
+                    llvm::Value *local_x = builder.CreateLoad(uType,localx,"local_x");
                     builder.CreateCall(barrierReached,{local_x});
 
 
@@ -884,7 +884,26 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
                 }else if(calledFunc->getName().str() == "pocl.subgroup_barrier"){
 
                     
+                    llvm::IRBuilder<> builder(callInst);
 
+                    // Move insertion point to before after call, rather than after
+                    builder.SetInsertPoint(&*++builder.GetInsertPoint());
+
+
+
+                    llvm::Function *sgbarrierReached = M->getFunction("__pocl_sg_barrier_reached");
+
+                    /* llvm::Function *sg_local_id_f = M->getFunction("_Z22get_sub_group_local_idv");
+                    llvm::Value *sg_local_id = builder.CreateCall(sg_local_id_f);
+                    sg_local_id->setName("sg_local_id_for_scheduler");
+
+                    llvm::Function *sg_id_f = M->getFunction("_Z16get_sub_group_idv");
+                    llvm::Value *sg_id = builder.CreateCall(sg_id_f);
+                    sg_id->setName("sg_id_for_scheduler"); */
+                    llvm::Type *uType = llvm::Type::getInt32Ty(M->getContext());
+                    llvm::GlobalVariable *localx = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_id_x"));
+                    llvm::Value *local_x = builder.CreateLoad(uType,localx,"local_x");
+                    builder.CreateCall(sgbarrierReached,{local_x});
 
 
                 }
