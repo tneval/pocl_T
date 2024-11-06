@@ -606,7 +606,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     F = &Func;
 
 
-    M->print(llvm::outs(), nullptr);
+    //M->print(llvm::outs(), nullptr);
 
 
     //M->dump();
@@ -637,7 +637,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::IRBuilder<> builder2(&*(Func.getEntryBlock().getFirstInsertionPt()));
     LocalIdXFirstVar = builder2.CreateAlloca(ST, 0, ".pocl.local_id_x_init");
 
-    for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
+    /* for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
         ParallelRegion *Region = (*PRI);
 
         std::cerr << "### Adding context save/restore for PR: ";
@@ -648,7 +648,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         fixMultiRegionVariables(Region);
     }
 
-    
+     */
     llvm::Module *M = Func.getParent();
 
 
@@ -656,6 +656,31 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     llvm::BasicBlock *Entry = &Func.getEntryBlock();
     insertLocalIdInit_(Entry);
+
+
+    llvm::Instruction *term = Entry->getTerminator();
+
+    llvm::IRBuilder<> builderInit(term);
+
+    // Move insertion point to before after call, rather than after
+    //builderI.SetInsertPoint(&*++builderI.GetInsertPoint());
+
+
+     // Create function call to __pocl_sched_init
+    llvm::Function *schedFuncI = M->getFunction("__pocl_sched_init");
+
+    llvm::GlobalVariable *sgSizePtr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_pocl_sub_group_size"));
+    llvm::Type *uType = llvm::Type::getInt32Ty(M->getContext());
+    llvm::Value *sg_size = builderInit.CreateLoad(uType,sgSizePtr,"sg_size");
+    
+    llvm::GlobalVariable *xSizePtr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_size_x"));
+
+    llvm::Value *x_size = builderInit.CreateLoad(uType,xSizePtr,"x_size");
+
+    builderInit.CreateCall(schedFuncI, {sg_size,x_size});
+
+    //F->dump();
+    M->dump();
 
     // Store pointers here
     // Blocks where we jump back to
@@ -676,7 +701,9 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
                 llvm::Function *calledFunc = callInst->getCalledFunction();
 
                 if(calledFunc->getName().str() == "pocl.barrier") {
-            
+                    
+
+
                     // Do not loop the entry and exit
                     /* if(currentBB->getName().str() == "exit.barrier"){
                         // We cant skip this
@@ -708,14 +735,26 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
                     // Move insertion point to before after call, rather than after
                     builder.SetInsertPoint(&*++builder.GetInsertPoint());
 
+
+                    llvm::Function *barrierReached = M->getFunction("__pocl_barrier_reached");
+
+                    /* llvm::Function *sg_local_id_f = M->getFunction("_Z22get_sub_group_local_idv");
+                    llvm::Value *sg_local_id = builder.CreateCall(sg_local_id_f);
+                    sg_local_id->setName("sg_local_id_for_scheduler");
+
+                    llvm::Function *sg_id_f = M->getFunction("_Z16get_sub_group_idv");
+                    llvm::Value *sg_id = builder.CreateCall(sg_id_f);
+                    sg_id->setName("sg_id_for_scheduler"); */
+
+                    llvm::GlobalVariable *localx = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_id_x"));
+                    llvm::Value *local_x = builderInit.CreateLoad(uType,xSizePtr,"local_x");
+                    builder.CreateCall(barrierReached,{local_x});
+
+
                     // Create function call to __pocl_sched_work_item to retrieve next WI id
-                    llvm::FunctionType *funcType = llvm::FunctionType::get(builder.getInt64Ty(),{},false);
                     llvm::Function *schedFunc = M->getFunction("__pocl_sched_work_item");
 
-                    if (!schedFunc) {
-                        schedFunc = llvm::Function::Create(funcType,llvm::Function::ExternalLinkage,"__pocl_sched_work_item",M);
-                    }
-
+                
                     // Retrieve the return value, i.e. WI id
                     llvm::Value *returnValue = builder.CreateCall(schedFunc);
 
