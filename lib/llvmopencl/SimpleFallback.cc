@@ -143,6 +143,7 @@ private:
 
     //bool processFunction(llvm::Function &F);
 
+
 };
 
 
@@ -608,12 +609,6 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     M = Func.getParent();
     F = &Func;
 
-
-    //M->print(llvm::outs(), nullptr);
-
-
-    //M->dump();
-
     Initialize(llvm::cast<Kernel>(&Func));
 
     // This will add on module level:
@@ -640,7 +635,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::IRBuilder<> builder2(&*(Func.getEntryBlock().getFirstInsertionPt()));
     LocalIdXFirstVar = builder2.CreateAlloca(ST, 0, ".pocl.local_id_x_init");
 
-    /* for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
+    for (ParallelRegion::ParallelRegionVector::iterator PRI = OriginalParallelRegions.begin(),PRE = OriginalParallelRegions.end();PRI != PRE; ++PRI) {
         ParallelRegion *Region = (*PRI);
 
         std::cerr << "### Adding context save/restore for PR: ";
@@ -650,7 +645,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
         fixMultiRegionVariables(Region);
     }
- */
+
     
     llvm::Module *M = Func.getParent();
 
@@ -670,8 +665,22 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     llvm::IRBuilder<> entryBlockBuilder(Entry, Entry->begin());
     llvm::Type *int32Type = llvm::Type::getInt32Ty(M->getContext());
-    llvm::AllocaInst *localVar = entryBlockBuilder.CreateAlloca(int32Type, nullptr, "next_exit_block");
 
+
+    // Array for exit block indices
+    llvm::Type *Int64Ty = llvm::Type::getInt64Ty(M->getContext());
+    llvm::ArrayType *exitBlockIdxs = llvm::ArrayType::get(Int64Ty, 16);
+    llvm::AllocaInst *nextExitBlockArray = entryBlockBuilder.CreateAlloca(exitBlockIdxs, nullptr, "next_exit_block_array");
+
+
+    for (int i = 0; i < 16; i++) {
+        llvm::Value *index = entryBlockBuilder.getInt32(i);
+        llvm::Value *exitBidxPtr = entryBlockBuilder.CreateGEP(exitBlockIdxs, nextExitBlockArray, {entryBlockBuilder.getInt64(0), index});
+        entryBlockBuilder.CreateStore(entryBlockBuilder.getInt64(0), exitBidxPtr);
+    }
+
+
+    
 
      // Create function call to __pocl_sched_init
     llvm::Function *schedFuncI = M->getFunction("__pocl_sched_init");
@@ -693,145 +702,155 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     std::vector<llvm::BasicBlock*> barrierExits;
 
 
-    // Obtain context handle
-    llvm::LLVMContext &ctx = M->getContext();
-
-     // Create new block
-    llvm::BasicBlock *dispatcherBlock = llvm::BasicBlock::Create(ctx, "dispatcher", F);
+    // Create new block
+    llvm::BasicBlock *dispatcherBlock = llvm::BasicBlock::Create(F->getContext(), "dispatcher", F);
   
     llvm::BasicBlock *currBlock = Entry;
 
 
+    std::vector<llvm::BasicBlock*> barrierBlocks;
 
-    while(currBlock){
+    llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x"));
+   
+    llvm::Value *zeroIndex = llvm::ConstantInt::get(llvm::Type::getInt32Ty(M->getContext()), 0);
 
-        
-        // Entry barrier is special case, does not need handling, move on
-        if(currBlock->getName().str() == "entry.barrier"){
+    for(auto &Block : Func){
+
+        if(Barrier::hasBarrier(&Block) || SubgroupBarrier::hasSGBarrier(&Block)){
+            barrierBlocks.push_back(&Block);
             
-            currBlock = currBlock->getNextNode();
-
-            // This is first where we jump back
-            barrierExits.push_back(currBlock);
-
-            continue;
         }
+    }
 
+    // Modify the barrier blocks
+    for(auto &BBlock : barrierBlocks){
 
-        // No barriers, nothing interesting, move on
-        if(!(Barrier::hasBarrier(currBlock) || SubgroupBarrier::hasSGBarrier(currBlock))){
+        // This is the "return" block
+        if(BBlock->getTerminator()->getNumSuccessors() == 0){
             
-            currBlock = currBlock->getNextNode();
-            continue;
-        }
+            // Create new kernel exit where we come out as "one"
+            llvm::BasicBlock *newExitBlock = llvm::BasicBlock::Create(F->getContext(), "exit_block", F);
+            
+
+            // This will be the last jump where we exit from the kernel
+            barrierExits.push_back(newExitBlock);
+
+
+            // Handle for old return block
+            llvm::IRBuilder<> oldExitBlockBuilder(BBlock->getTerminator());
+
+            
+            llvm::Value *local_x = oldExitBlockBuilder.CreateLoad(uType,localIdXPtr,"local_x");
+            
+            llvm::Value *next_block_ptr = oldExitBlockBuilder.CreateGEP(exitBlockIdxs, nextExitBlockArray, {zeroIndex, local_x}, "exit_block_ptr");
+
+            llvm::Value *next_block_idx = llvm::ConstantInt::get(Int64Ty, barrierExits.size()-1);
+            oldExitBlockBuilder.CreateStore(next_block_idx, next_block_ptr);
+
+            llvm::Function *barrierReached = M->getFunction("__pocl_barrier_reached");           
+            oldExitBlockBuilder.CreateCall(barrierReached,{local_x});
+            
+            // Add branch to dispatcher
+            oldExitBlockBuilder.CreateBr(dispatcherBlock);
+
+            // This removes the "old" ret void
+            BBlock->getTerminator()->eraseFromParent();
+
+            // Add ret void instr to new return block
+            llvm::IRBuilder<> newExitBlockBuilder(newExitBlock);
+            newExitBlockBuilder.CreateRetVoid();
+
+           
+            
+            
         
-        // Has a barrier (WG or SG)
+        // This is the entry barrier block
+        }else if (BBlock->hasNPredecessors(0)){
 
-        // For now, check if last instruction is ret void. Don't know if this is enough to deduce terminal block.
-        // There might be several like this, but does it matter?
-        llvm::Instruction* lastOfBlock = currBlock->getTerminator();
+            // We dont want to loop over the entry.barrier
+            // Do not jump to dispatcher from here
+    
+            // This is the next exit block
+            barrierExits.push_back(BBlock->getTerminator()->getSuccessor(0));
+            //std::cout << BBlock->getTerminator()->getSuccessor(0)->getName().str()<< std::endl;
+        
+        // These are "Explicit" barriers
+        }else{
+            
 
-        // Check that this is not ret void block
-        if(auto* retInst = llvm::dyn_cast<llvm::ReturnInst>(lastOfBlock)){
-            if(retInst->getReturnValue() == nullptr){
-                break;
+            if(Barrier::hasBarrier(BBlock)){
+                std::cout << "BARRIER: " << BBlock->getName().str() << std::endl;
+            }else if(SubgroupBarrier::hasSGBarrier(BBlock)){
+                std::cout << "SG BARRIER:" << BBlock->getName().str() << std::endl;
             }
+
+
+
+             // This is the next exit block
+            barrierExits.push_back(BBlock->getTerminator()->getSuccessor(0));
+            //std::cout << BBlock->getTerminator()->getSuccessor(0)->getName().str()<< std::endl;
+
+            // These contain either barriers or sg barriers, but not the "entry" or "exit" barrier
+            llvm::IRBuilder<> barrierBlockBuilder(BBlock->getTerminator());
+            
+
+            llvm::Value *local_x = barrierBlockBuilder.CreateLoad(uType,localIdXPtr,"local_x");
+            
+            llvm::Value *next_block_ptr = barrierBlockBuilder.CreateGEP(exitBlockIdxs, nextExitBlockArray, {zeroIndex, local_x}, "exit_block_ptr");
+
+            llvm::Value *next_block_idx = llvm::ConstantInt::get(Int64Ty, barrierExits.size()-1);
+            barrierBlockBuilder.CreateStore(next_block_idx, next_block_ptr);
+
+            // Register barrier entry
+            if(Barrier::hasBarrier(BBlock)){
+                llvm::Function *barrierReached = M->getFunction("__pocl_barrier_reached");           
+                barrierBlockBuilder.CreateCall(barrierReached,{local_x});
+            }else if(SubgroupBarrier::hasSGBarrier(BBlock)){
+                llvm::Function *sgbarrierReached = M->getFunction("__pocl_sg_barrier_reached");
+                barrierBlockBuilder.CreateCall(sgbarrierReached,{local_x});
+            }
+
+            // Add branch to dispatcher
+            barrierBlockBuilder.CreateBr(dispatcherBlock);
+
+            // This removes the old branch
+            BBlock->getTerminator()->eraseFromParent();
+
         }
-
-
-        std::cout << currBlock->getName().str() << std::endl;
-
-
-        
-
-        // Add barrier exit for current wi
-        barrierExits.push_back(currBlock->getNextNode());
-
-        // remove last branch and jump to dispatcher
-        llvm::Instruction* lastInst = currBlock->getTerminator();
-       
-
-        llvm::IRBuilder<> brBuilder(lastInst);
-
-        // Store exit block locally
-        int exit_idx = barrierExits.size()-1;
-        llvm::Value *valueToStore = llvm::ConstantInt::get(int32Type, exit_idx);
-
-        llvm::Instruction *storeExitIdx = brBuilder.CreateStore(valueToStore, localVar);
-
-        addContextSaveRestore(storeExitIdx);
-
-
-        //llvm::ConstantInt *constVal = llvm::ConstantInt::get(llvm::Type::getInt32Ty(M->getContext()), exit_idx);
-
-
-        if(Barrier::hasBarrier(currBlock)){
-            llvm::Function *barrierReached = M->getFunction("__pocl_barrier_reached");
-
-            llvm::Type *uType = llvm::Type::getInt32Ty(M->getContext());
-            llvm::GlobalVariable *localx = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_id_x"));
-            llvm::Value *local_x = brBuilder.CreateLoad(uType,localx,"local_x");
-            brBuilder.CreateCall(barrierReached,{local_x});
-        }else if(SubgroupBarrier::hasSGBarrier(currBlock)){
-            llvm::Function *sgbarrierReached = M->getFunction("__pocl_sg_barrier_reached");
-
-            llvm::Type *uType = llvm::Type::getInt32Ty(M->getContext());
-            llvm::GlobalVariable *localx = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_id_x"));
-            llvm::Value *local_x = brBuilder.CreateLoad(uType,localx,"local_x");
-            brBuilder.CreateCall(sgbarrierReached,{local_x});
-        }
-
-        
-
-
-
-
-        // Jump to dispatcher
-        brBuilder.CreateBr(dispatcherBlock);
-
-        // Erase previous jump
-        lastInst->eraseFromParent();
-
-        
-
-        currBlock = currBlock->getNextNode();
-
-        
-        
-
     }
 
-    std::cout << "collected exit blocks: " << std::endl;
-    for(auto &i : barrierExits){
-        std::cout << i->getName().str()<<std::endl;
-    }
-
+    // Build the dispatcher block
     llvm::IRBuilder<> bBuilder(dispatcherBlock);
-
 
     // Create function call to __pocl_sched_work_item to retrieve next WI id
     llvm::Function *schedFunc = M->getFunction("__pocl_sched_work_item");
 
     // Retrieve the return value, i.e. WI id
-    llvm::Value *returnValue = bBuilder.CreateCall(schedFunc);
-
-    llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x"));
-
-    bBuilder.CreateStore(returnValue, localIdXPtr);
+    llvm::Value *nextWI = bBuilder.CreateCall(schedFunc);
+    nextWI->setName("next_wi");
 
 
-    llvm::Instruction *exit_idx = bBuilder.CreateLoad(int32Type, localVar, "next_exit_block");
+    // Store new id as global
+    bBuilder.CreateStore(nextWI, localIdXPtr);
+
+    // Pointer to exit index array
+    llvm::Value *next_block_ptr = bBuilder.CreateGEP(exitBlockIdxs, nextExitBlockArray, {zeroIndex, nextWI}, "exit_block_ptr");
+
+    // Retrieve exit index based for current local_id_x
+    llvm::Value *loadedValue = bBuilder.CreateLoad(bBuilder.getInt64Ty(), next_block_ptr, "next_exit_block");
     
-    addContextSaveRestore(exit_idx);
+    llvm::Function *nextI = M->getFunction("__pocl_next_jump");
+    bBuilder.CreateCall(nextI, {loadedValue});
     
-
+    
+    // Create switch statement for exit blocks
     if(barrierExits.size() > 0){
 
         llvm::ConstantInt *zero = llvm::ConstantInt::get(bBuilder.getInt32Ty(),0);
-        llvm::SwitchInst *switchInst = bBuilder.CreateSwitch(exit_idx, barrierExits[0]);
+        llvm::SwitchInst *switchInst = bBuilder.CreateSwitch(loadedValue, barrierExits[0]);
     
 
-        for(int i = 0; i < barrierExits.size(); i++){
+        for(int i = 1; i < barrierExits.size(); i++){
             
             llvm::ConstantInt *caseValue = llvm::ConstantInt::get(bBuilder.getInt32Ty(), i);
             
@@ -839,9 +858,6 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         }
 
     }
-
-
-
 
     return true;
 
@@ -872,7 +888,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 
     //F.dump();
 
-
+    dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
 
 
     auto &DT = AM.getResult<llvm::DominatorTreeAnalysis>(F);
