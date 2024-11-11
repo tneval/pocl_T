@@ -234,6 +234,9 @@ bool WorkgroupImpl::runOnModule(Module &M, FunctionVec &OldKernels) {
       PointerType::get(Int8T, DeviceGlobalASid),  // GLOBAL_VAR_BUFFER
       Int32T);                                    // WORK_DIM
 
+ 
+
+
   LauncherFuncT = FunctionType::get(
       Type::getVoidTy(*C),
       {PointerType::get(PointerType::get(Type::getInt8Ty(*C), 0),
@@ -293,6 +296,8 @@ bool WorkgroupImpl::runOnModule(Module &M, FunctionVec &OldKernels) {
     }
   }
 
+  
+
   if (!DeviceUsingArgBufferLauncher && DeviceIsSPMD) {
     regenerate_kernel_metadata(M, KernelsMap);
   }
@@ -307,7 +312,7 @@ bool WorkgroupImpl::runOnModule(Module &M, FunctionVec &OldKernels) {
     assert(OldKernel != NewKernel);
     OldKernels.push_back(OldKernel);
   }
-
+  
   return true;
 }
 
@@ -1135,7 +1140,7 @@ void WorkgroupImpl::createDefaultWorkgroupLauncher(llvm::Function *F) {
         llvm::DILocation::get(CI->getContext(), F->getSubprogram()->getLine(),
                               0, WorkGroup->getSubprogram(), nullptr, true));
   }
-
+ 
   Builder.CreateRetVoid();
 }
 
@@ -1338,7 +1343,6 @@ LLVMValueRef WorkgroupImpl::createArgBufferLoad(LLVMBuilderRef Builder,
 Function *
 WorkgroupImpl::createArgBufferWorkgroupLauncher(Function *Func,
                                                 std::string KernName) {
-
   LLVMValueRef F = wrap(Func);
   uint64_t ArgCount = LLVMCountParams(F);
   uint64_t ArgBufferOffsets[ArgCount];
@@ -1701,7 +1705,7 @@ llvm::PreservedAnalyses Workgroup::run(llvm::Module &M,
       break;
     }
   }
-
+ 
   std::vector<llvm::GlobalVariable *> GVarsToDelete;
   // remove the declarations of global variables
   for (auto &GV : M.globals()) {
@@ -1721,11 +1725,11 @@ llvm::PreservedAnalyses Workgroup::run(llvm::Module &M,
 
     GVarsToDelete.push_back(GVar);
   }
-
+   
   for (llvm::GlobalVariable *GVar : GVarsToDelete) {
     GVar->eraseFromParent();
   }
-
+   
   return Ret ? PAChanged : PreservedAnalyses::all();
 }
 

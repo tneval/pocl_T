@@ -161,17 +161,18 @@ private:
 bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
 
   std::cerr<<"before WILOOP\n";
-  Func.dump();
+  
 
   M = Func.getParent();
   F = &Func;
+  
   Initialize(cast<Kernel>(&Func));
-
+ 
   GlobalIdIterators = {
       cast<GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(0), ST)),
       cast<GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(1), ST)),
       cast<GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(2), ST))};
-
+  
   TempInstructionIndex = 0;
 
   bool Changed = processFunction(Func);
@@ -201,10 +202,10 @@ bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
 
 
   std::cerr<<"after WILOOP\n";
-  Func.dump();
+  
 
 
-  dumpCFG(Func, Func.getName().str() + "_after_wiloops.dot", nullptr,nullptr);
+  //dumpCFG(Func, Func.getName().str() + "_after_wiloops.dot", nullptr,nullptr);
 
 
 
@@ -482,6 +483,7 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
      detect diverging regions that need to be peeled. */
   std::map<llvm::BasicBlock*, int> entryCounts;
 
+   F.dump();
   for (ParallelRegion::ParallelRegionVector::iterator
            PRI = OriginalParallelRegions.begin(),
            PRE = OriginalParallelRegions.end();
@@ -494,7 +496,7 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
     fixMultiRegionVariables(Region);
     entryCounts[Region->entryBB()]++;
   }
-
+   F.dump();
 #if 0
   std::cerr << "### After context code addition:" << std::endl;
   F.viewCFG();

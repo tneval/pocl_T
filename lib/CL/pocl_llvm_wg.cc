@@ -380,7 +380,9 @@ llvm::Error TwoStagePoCLModulePassManager::build(
 
 void TwoStagePoCLModulePassManager::run(llvm::Module &Bitcode) {
   Stage1.run(Bitcode);
+  std::cout << "stage 1 ready" << std::endl; 
   Stage2.run(Bitcode);
+  std::cout << "stage 2 ready" <<std::endl;
 }
 
 
