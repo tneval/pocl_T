@@ -149,7 +149,7 @@ private:
     void addSave();
     void addLoad();
 
-    void getGEP(llvm::AllocaInst *CtxArrayAlloca,llvm::Instruction *Before,bool AlignPadding);
+    llvm::GetElementPtrInst* getGEP(llvm::AllocaInst *CtxArrayAlloca,llvm::Instruction *Before,bool AlignPadding);
 
 
 };
@@ -274,7 +274,40 @@ void SimpleFallbackImpl::addSave()
 
 
 
-        ctxSaveBuilder.CreateStore(contextVars[i],ctxSaveBuilder.CreateGEP(contextAllocas[i]->getAllocatedType(), contextAllocas[i], gepArgs));
+        llvm::Instruction* TheStore = ctxSaveBuilder.CreateStore(contextVars[i],ctxSaveBuilder.CreateGEP(contextAllocas[i]->getAllocatedType(), contextAllocas[i], gepArgs));
+
+
+        InstructionVec Uses;
+
+
+        for (llvm::Instruction::use_iterator UI = contextVars[i]->use_begin(), UE = contextVars[i]->use_end();UI != UE; ++UI) {
+
+            llvm::Instruction *User = llvm::cast<llvm::Instruction>(UI->getUser());
+
+            if (User == NULL || User == TheStore) continue;
+
+            Uses.push_back(User);
+        }
+
+
+
+        for (InstructionVec::iterator I = Uses.begin(); I != Uses.end(); ++I) {
+    
+            llvm::Instruction *UserI = *I;
+            
+            
+            
+            llvm::Instruction *ContextRestoreLocation = UserI;
+
+            llvm::Value* LoadedValue = addContextRestore(UserI, contextAllocas[i], contextAllocas[i]->getType(), false, ContextRestoreLocation, llvm::isa<llvm::AllocaInst>(contextVars[i]));
+            
+            
+            
+            UserI->replaceUsesOfWith(contextVars[i], LoadedValue);
+        
+        }
+
+
     }
     
 }
@@ -315,18 +348,19 @@ void SimpleFallbackImpl::addLoad()
 
 
 
-void SimpleFallbackImpl::getGEP(llvm::AllocaInst *CtxArrayAlloca,llvm::Instruction *Before,bool AlignPadding)
+llvm::GetElementPtrInst* SimpleFallbackImpl::getGEP(llvm::AllocaInst *CtxArrayAlloca,llvm::Instruction *Before,bool AlignPadding)
 {
 
-    std::cout << "getGEP1\n";
+    
 
     llvm::Type *uType = llvm::Type::getInt64Ty(M->getContext());
     llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x"));
     llvm::GlobalVariable *localIdYPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_y"));
     llvm::GlobalVariable *localIdZPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_z"));
 
+    //llvm::IRBuilder<> ctxLoadBuilder(dispatcher);
 
-    llvm::IRBuilder<> ctxLoadBuilder(dispatcher);
+    llvm::IRBuilder<> ctxLoadBuilder(Before);
 
     llvm::Value *local_x = ctxLoadBuilder.CreateLoad(uType,localIdXPtr,"local_x");
     llvm::Value *local_y = ctxLoadBuilder.CreateLoad(uType,localIdXPtr,"local_y");
@@ -340,22 +374,27 @@ void SimpleFallbackImpl::getGEP(llvm::AllocaInst *CtxArrayAlloca,llvm::Instructi
     GEPArgs.push_back(local_y);
     GEPArgs.push_back(local_x);
     
-    std::cout << "getGEP2\n";
+    
 
     if (AlignPadding)
         GEPArgs.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(CtxArrayAlloca->getContext()), 0));
+    
 
- 
+    std::cout << "inserting GEP (getGEP)\n";
+    llvm::GetElementPtrInst *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(ctxLoadBuilder.CreateGEP(
+      CtxArrayAlloca->getAllocatedType(), CtxArrayAlloca, GEPArgs));
 
     //CtxArrayAlloca->getAllocatedType()->print(llvm::outs());
   
 
-    for(int i = 0; i<contextVars.size(); i++){
+    /* for(int i = 0; i<contextVars.size(); i++){
         std::cout << "getGEP3\n";
         llvm::GetElementPtrInst *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(ctxLoadBuilder.CreateGEP(
       contextAllocas[i]->getAllocatedType(), contextAllocas[i], GEPArgs));
         std::cout << "getGEP4\n";
-    }
+    } */
+
+    return GEP;
 
 
   
@@ -420,7 +459,11 @@ llvm::Instruction *SimpleFallbackImpl::addContextRestore(
 
     assert(Before != nullptr);
 
-    llvm::Instruction *GEP = createContextArrayGEP(AllocaI, Before, PaddingWasAdded);
+    //llvm::Instruction *GEP = createContextArrayGEP(AllocaI, Before, PaddingWasAdded);
+
+
+    llvm::Instruction* GEP = getGEP(AllocaI, Before, PaddingWasAdded);
+
     if (isAlloca) {
         /* In case the context saved instruction was an alloca, we created a
         context array with pointed-to elements, and now want to return a
@@ -917,9 +960,12 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     F = &Func;
 
 
-    Func.dump();
+    
 
     Initialize(llvm::cast<Kernel>(&Func));
+
+
+        //Func.dump();
 
     // This will add on module level:
     //@_global_id_x = external global i64
@@ -939,8 +985,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     releaseParallelRegions();
 
     K->getParallelRegions(LI, &OriginalParallelRegions);
-
+    
     handleWorkitemFunctions();
+
+    //Func.dump();
 
     llvm::IRBuilder<> builder2(&*(Func.getEntryBlock().getFirstInsertionPt()));
 
@@ -987,10 +1035,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
   
     //ctxSaveRestore();
-    identifyContextVars();
-    allocateContextVars();
-    addSave();
-    addLoad();
+    //identifyContextVars();
+    //allocateContextVars();
+    //addSave();
+    //addLoad();
 
 
     llvm::Module *M = Func.getParent();
@@ -1142,6 +1190,12 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
             // Add ret void instr to new return block
             llvm::IRBuilder<> newExitBlockBuilder(newExitBlock);
+
+
+            /* llvm::Function *schedClean = M->getFunction("__pocl_sched_clean");
+
+            newExitBlockBuilder.CreateCall(schedClean); */
+
             newExitBlockBuilder.CreateRetVoid();
 
            
@@ -1229,8 +1283,8 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Retrieve exit index based for current local_id_x
     llvm::Value *loadedValue = bBuilder.CreateLoad(bBuilder.getInt64Ty(), next_block_ptr, "next_exit_block");
     
-    llvm::Function *nextI = M->getFunction("__pocl_next_jump");
-    bBuilder.CreateCall(nextI, {loadedValue});
+    /* llvm::Function *nextI = M->getFunction("__pocl_next_jump");
+    bBuilder.CreateCall(nextI, {loadedValue}); */
     
     
     // Create switch statement for exit blocks
@@ -1249,9 +1303,9 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     }
 
-    Func.dump();
+    //Func.dump();
 
-    //M->dump();
+    M->dump();
 
   
 

@@ -77,7 +77,7 @@ static void resolve_barriers()
 
 
 
-static void print_barrier_status(){
+/* static void print_barrier_status(){
 
     for(int i = 0; i < n_subgroups; i++){
         
@@ -85,7 +85,7 @@ static void print_barrier_status(){
     }
     fprintf(stdout,"\n");
 
-}
+} */
 
 
 void __pocl_sched_init(unsigned int sg_size, unsigned int x_size)
@@ -94,6 +94,8 @@ void __pocl_sched_init(unsigned int sg_size, unsigned int x_size)
 #ifdef DBG
     fprintf(stdout, "SCHEDULER>> init called %u\t%d\n",sg_size,x_size);
 #endif
+
+    fprintf(stdout, "SCHEDULER>> init called %u\t%d\n",sg_size,x_size);
 
     sub_group_size = sg_size;
 
@@ -129,9 +131,8 @@ void __pocl_barrier_reached(int local_id_x)
 #ifdef DBG
     fprintf(stdout, "SCHEDULER>> BARRIER REACHED\n");
     fprintf(stdout, "SCHEDULER>> sg_id: %d\t sg_local_id: %d\n",sg_id, sg_local_id);
-    print_barrier_status();
 #endif
-    
+    //print_barrier_status();
 
     //resolve_barriers();
 
@@ -159,10 +160,10 @@ void __pocl_sg_barrier_reached(int local_id_x)
 #ifdef DBG
     fprintf(stdout, "SCHEDULER>> SG BARRIER REACHED\n");
     fprintf(stdout, "SCHEDULER>> sg_id: %d\t sg_local_id: %d\n",sg_id, sg_local_id);
-    print_barrier_status();
+    
 #endif
 
-
+    //print_barrier_status();
     
 
    
@@ -198,6 +199,9 @@ long __pocl_sched_work_item()
 
 void __pocl_sched_clean()
 {
+
+    fprintf(stdout, "SCHEDULER>> clean called\n");
+
     /* free(sub_group_barrier_status);
 
     for(int sg_i = 0; sg_i < n_subgroups; sg_i++){
@@ -209,7 +213,7 @@ void __pocl_sched_clean()
 
     // ALT
 
-    free(sg_wi_counter);
-    free(sg_barrier_status);
+    /* free(sg_wi_counter);
+    free(sg_barrier_status); */
 
 }
