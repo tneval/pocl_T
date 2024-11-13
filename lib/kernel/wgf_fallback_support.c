@@ -22,7 +22,7 @@ static int* sg_wi_counter;
 static int* sg_barrier_status;
 
 
-//#define DBG
+#define DBG
 
 
 void __pocl_next_jump(int idx){

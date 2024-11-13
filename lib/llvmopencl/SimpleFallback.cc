@@ -73,8 +73,8 @@ public:
 
 
 protected:
-    llvm::Value *getLinearWIIndexInRegion(llvm::Instruction *Instr) override;
-    llvm::Instruction *getLocalIdInRegion(llvm::Instruction *Instr,size_t Dim) override;
+    //llvm::Value *getLinearWIIndexInRegion(llvm::Instruction *Instr) override;
+    //llvm::Instruction *getLocalIdInRegion(llvm::Instruction *Instr,size_t Dim) override;
 
 
 // TODO: Check what is actually needed, these are from wiloops
@@ -92,7 +92,7 @@ private:
 
     VariableUniformityAnalysisResult &VUA;
 
-
+    llvm::BasicBlock* dispatcher;
 
 
     ParallelRegion::ParallelRegionVector OriginalParallelRegions;
@@ -112,9 +112,9 @@ private:
 
     
 
-    ParallelRegion *regionOfBlock(llvm::BasicBlock *BB);
+    //ParallelRegion *regionOfBlock(llvm::BasicBlock *BB);
 
-    llvm::Value *getLinearWiIndex(llvm::IRBuilder<> &Builder, llvm::Module *M, ParallelRegion *Region);
+    //llvm::Value *getLinearWiIndex(llvm::IRBuilder<> &Builder, llvm::Module *M, ParallelRegion *Region);
 
     llvm::Instruction *addContextSave(llvm::Instruction *Def, llvm::AllocaInst *AllocaI);
 
@@ -137,22 +137,233 @@ private:
 
     void addCtxSaveRstr(llvm::Instruction *Def);
 
+
+
+
+    std::vector<llvm::Instruction*> contextVars;
+    std::vector<llvm::AllocaInst*> contextAllocas;
+
+    void identifyContextVars();
+
+    void allocateContextVars();
+    void addSave();
+    void addLoad();
+
+    void getGEP(llvm::AllocaInst *CtxArrayAlloca,llvm::Instruction *Before,bool AlignPadding);
+
+
 };
 
 
+///////////////////////////////////////////////////////////////////
+// THE NEW CONTEXT SAVE
 
-// Overrides virtual method in WorkitemHandler class
-llvm::Instruction *SimpleFallbackImpl::getLocalIdInRegion(llvm::Instruction *Instr, size_t Dim) {
-    
-    ParallelRegion *ParRegion = regionOfBlock(Instr->getParent());
-    
-    if (ParRegion != nullptr) {
-        return ParRegion->getOrCreateIDLoad(LID_G_NAME(Dim));
+void SimpleFallbackImpl::identifyContextVars()
+{
+
+    std::cout << "identifyContextVars called\n" << std::endl;
+
+    int added = 0;
+
+    for (auto &BB : *F) {
+        for (auto &Instr : BB) {
+
+
+            if (shouldNotBeContextSaved(&Instr)){
+                continue;
+            }
+
+            std::cout << "Current instr: \n";
+            Instr.print(llvm::outs());
+            std::cout << "\n";
+            for (llvm::Instruction::use_iterator UI = Instr.use_begin(),UE = Instr.use_end();UI != UE; ++UI) {
+            
+                llvm::Instruction *User = llvm::dyn_cast<llvm::Instruction>(UI->getUser());
+
+                if (User == NULL)
+                    continue;
+
+                std::cout << "  User: \n";
+                User->print(llvm::outs());
+                std::cout <<"\n";
+
+
+                // User is in same block = NO CONTEXT SAVE needed
+                llvm::BasicBlock* currentBlock = Instr.getParent();
+
+                llvm::BasicBlock* userBlock = User->getParent();
+
+                if(currentBlock == userBlock){
+                    continue;
+                }
+
+                contextVars.push_back(&Instr);
+                added++;
+                break;
+            }
+            
+        }
     }
-    llvm::IRBuilder<> Builder(Instr);
 
-    return Builder.CreateLoad(ST, LocalIdGlobals[Dim]);
+    std::cout << "\nFixing: "<<std::endl;
+    for(auto &inst : contextVars){
+        inst->print(llvm::outs());
+        std::cout << "\n";
+    }
+
+
+} // identifyContextVars()
+
+void SimpleFallbackImpl::allocateContextVars()
+{
+
+    std::cout << "allocateContextVars called\n";
+
+    for(auto &instr : contextVars){
+        // Allocate the context data array for the variable.
+        bool PaddingAdded = false;
+        llvm::AllocaInst *Alloca = getContextArray(instr, PaddingAdded);
+
+        contextAllocas.push_back(Alloca);
+    }
 }
+
+void SimpleFallbackImpl::addSave()
+{
+
+    for(int i = 0; i< contextVars.size(); i++){
+        std::cout << "contextAlloca: " << contextAllocas[i]->getName().str() << "\n";
+        contextAllocas[i]->print(llvm::outs());
+        std::cout << "\n";
+    }
+    
+    
+
+
+    // cant insert here due to dominance
+    //llvm::IRBuilder<> ctxSaveBuilder(dispatcher, dispatcher->begin());
+
+    llvm::Type *uType = llvm::Type::getInt64Ty(M->getContext());
+    llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x"));
+    llvm::GlobalVariable *localIdYPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_y"));
+    llvm::GlobalVariable *localIdZPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_z"));
+
+
+    for(int i = 0; i< contextVars.size(); i++){
+
+
+        llvm::BasicBlock::iterator definition = (llvm::dyn_cast<llvm::Instruction>(contextVars[i]))->getIterator();
+        ++definition;
+        while (llvm::isa<llvm::PHINode>(definition)) ++definition;
+
+        // TO CLEAN: Refactor by calling CreateContextArrayGEP.
+        llvm::IRBuilder<> ctxSaveBuilder(&*definition);
+
+        llvm::Value *local_x = ctxSaveBuilder.CreateLoad(uType,localIdXPtr,"local_x");
+        llvm::Value *local_y = ctxSaveBuilder.CreateLoad(uType,localIdXPtr,"local_y");
+        llvm::Value *local_z = ctxSaveBuilder.CreateLoad(uType,localIdXPtr,"local_z");
+
+        // These are the indices for context arrays
+        std::vector<llvm::Value *> gepArgs;
+
+        gepArgs.push_back(llvm::ConstantInt::get(ST, 0));
+
+        gepArgs.push_back(local_z);
+        gepArgs.push_back(local_y);
+        gepArgs.push_back(local_x);
+
+
+
+        ctxSaveBuilder.CreateStore(contextVars[i],ctxSaveBuilder.CreateGEP(contextAllocas[i]->getAllocatedType(), contextAllocas[i], gepArgs));
+    }
+    
+}
+
+void SimpleFallbackImpl::addLoad()
+{
+
+    bool PaddingAdded=false;
+    
+
+
+    llvm::Instruction* ContextRestoreLocation = dispatcher->getTerminator();
+
+    /* for(int i = 0; i< contextAllocas.size(); i++){
+
+        std::cout << "hep: " << i <<std::endl;
+
+        bool isAlloca = llvm::isa<llvm::AllocaInst>(contextVars[i]);
+
+        llvm::Instruction *GEP = createContextArrayGEP(contextAllocas[i], ContextRestoreLocation, PaddingAdded);
+
+        std::cout << "got gep" << std::endl;
+
+        llvm::IRBuilder<> Builder(ContextRestoreLocation);
+        
+        Builder.CreateLoad(contextVars[i]->getType(), GEP);
+
+        std::cout << "hop: " <<i <<std::endl;
+    } */
+
+    getGEP(contextAllocas[0],ContextRestoreLocation,PaddingAdded);
+
+
+    std::cout << "addLoad called\n";
+
+
+}
+
+
+
+void SimpleFallbackImpl::getGEP(llvm::AllocaInst *CtxArrayAlloca,llvm::Instruction *Before,bool AlignPadding)
+{
+
+    std::cout << "getGEP1\n";
+
+    llvm::Type *uType = llvm::Type::getInt64Ty(M->getContext());
+    llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x"));
+    llvm::GlobalVariable *localIdYPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_y"));
+    llvm::GlobalVariable *localIdZPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_z"));
+
+
+    llvm::IRBuilder<> ctxLoadBuilder(dispatcher);
+
+    llvm::Value *local_x = ctxLoadBuilder.CreateLoad(uType,localIdXPtr,"local_x");
+    llvm::Value *local_y = ctxLoadBuilder.CreateLoad(uType,localIdXPtr,"local_y");
+    llvm::Value *local_z = ctxLoadBuilder.CreateLoad(uType,localIdXPtr,"local_z");
+
+
+    std::vector<llvm::Value *> GEPArgs;
+    
+    GEPArgs.push_back(llvm::ConstantInt::get(ST, 0));
+    GEPArgs.push_back(local_z);
+    GEPArgs.push_back(local_y);
+    GEPArgs.push_back(local_x);
+    
+    std::cout << "getGEP2\n";
+
+    if (AlignPadding)
+        GEPArgs.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(CtxArrayAlloca->getContext()), 0));
+
+ 
+
+    //CtxArrayAlloca->getAllocatedType()->print(llvm::outs());
+  
+
+    for(int i = 0; i<contextVars.size(); i++){
+        std::cout << "getGEP3\n";
+        llvm::GetElementPtrInst *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(ctxLoadBuilder.CreateGEP(
+      contextAllocas[i]->getAllocatedType(), contextAllocas[i], GEPArgs));
+        std::cout << "getGEP4\n";
+    }
+
+
+  
+
+}
+
+////////////////////////////////////////////////////////////////////
+
 
 
 
@@ -176,6 +387,7 @@ llvm::AllocaInst *SimpleFallbackImpl::getContextArray(llvm::Instruction *Inst,bo
 
     if (std::string(Inst->getName().str()) != "") {
         Var << Inst->getName().str();
+        std::cout << "Instr: " << Inst->getName().str() << std::endl;
     } else if (TempInstructionIds.find(Inst) != TempInstructionIds.end()) {
         Var << TempInstructionIds[Inst];
     } else {
@@ -200,6 +412,11 @@ llvm::AllocaInst *SimpleFallbackImpl::getContextArray(llvm::Instruction *Inst,bo
 llvm::Instruction *SimpleFallbackImpl::addContextRestore(
     llvm::Value *Val, llvm::AllocaInst *AllocaI, llvm::Type *LoadInstType,
     bool PaddingWasAdded, llvm::Instruction *Before, bool isAlloca) {
+
+
+    std::cout << "addContextRestore called\n";
+
+
 
     assert(Before != nullptr);
 
@@ -229,8 +446,18 @@ void SimpleFallbackImpl::addCtxSaveRstr(llvm::Instruction *Def){
     // Allocate the context data array for the variable.
     bool PaddingAdded = false;
     llvm::AllocaInst *Alloca = getContextArray(Def, PaddingAdded);
+    
+    
+    // Restoring always happens at the dispatcher
+    llvm::Instruction* ContextRestoreLocation = &*dispatcher->begin();
+
+    //llvm::Value *LoadedValue = addContextRestore(UserI, Alloca, Def->getType(), PaddingAdded, ContextRestoreLocation, llvm::isa<llvm::AllocaInst>(Def));
+    //llvm::Value *LoadedValue = addContextRestore(nullptr,Alloca,Def->getType(),PaddingAdded, ContextRestoreLocation, llvm::isa<llvm::AllocaInst>(Def));
+    
     llvm::Instruction *TheStore = addContextSave(Def, Alloca);
 
+
+    
 
     InstructionVec Uses;
 
@@ -244,56 +471,28 @@ void SimpleFallbackImpl::addCtxSaveRstr(llvm::Instruction *Def){
         Uses.push_back(User);
     }
 
+    bool set = false;
+
+
+    llvm::Value *LoadedValue;
 
     for (InstructionVec::iterator I = Uses.begin(); I != Uses.end(); ++I) {
-
+ 
         llvm::Instruction *UserI = *I;
-        llvm::Instruction *ContextRestoreLocation = UserI;
-        // If the user is in a block that doesn't belong to a region, the variable
-        // itself must be a "work group variable", that is, not dependent on the
-        // work item. Most likely an iteration variable of a for loop with a
-        // barrier.
-       
-
-        llvm::PHINode* Phi = llvm::dyn_cast<llvm::PHINode>(UserI);
-        if (Phi != NULL) {
-            // In case of PHI nodes, we cannot just insert the context restore code
-            // before it in the same basic block because it is assumed there are no
-            // non-phi Instructions before PHIs which the context restore code
-            // constitutes to. Add the context restore to the incomingBB instead.
-
-            // There can be values in the PHINode that are incoming from another
-            // region even though the decision BB is within the region. For those
-            // values we need to add the context restore code in the incoming BB
-            // (which is known to be inside the region due to the assumption of not
-            // having to touch PHI nodes in PRentry BBs).
-
-            // PHINodes at region entries are broken down earlier.
-            assert ("Cannot add context restore for a PHI node at the region entry!" && regionOfBlock(Phi->getParent())->entryBB() != Phi->getParent());
-
-            //std::cerr << "### adding context restore code before PHI" << std::endl;
-            //UserI->dump();
-            //std::cerr << "### in BB:" << std::endl;
-            //UserI->getParent()->dump();
-
-            llvm::BasicBlock *IncomingBB = NULL;
-            for (unsigned Incoming = 0; Incoming < Phi->getNumIncomingValues();
-                ++Incoming) {
-                llvm::Value *Val = Phi->getIncomingValue(Incoming);
-                llvm::BasicBlock *BB = Phi->getIncomingBlock(Incoming);
-                if (Val == Def)
-                IncomingBB = BB;
-            }
-            assert(IncomingBB != NULL);
-            ContextRestoreLocation = IncomingBB->getTerminator();
+         
+        
+        if(!set){
+            LoadedValue = addContextRestore(UserI, Alloca, Def->getType(), PaddingAdded, ContextRestoreLocation, llvm::isa<llvm::AllocaInst>(Def));
+            set = true;
+        
         }
-
-
-        llvm::Value *LoadedValue = addContextRestore(UserI, Alloca, Def->getType(), PaddingAdded, ContextRestoreLocation, llvm::isa<llvm::AllocaInst>(Def));
         
         UserI->replaceUsesOfWith(Def, LoadedValue);
     
     }
+
+    
+
 
 }
 
@@ -364,7 +563,7 @@ void SimpleFallbackImpl::addContextSaveRestore(llvm::Instruction *Def) {
         // itself must be a "work group variable", that is, not dependent on the
         // work item. Most likely an iteration variable of a for loop with a
         // barrier.
-        if (regionOfBlock(UserI->getParent()) == NULL) continue;
+        //if (regionOfBlock(UserI->getParent()) == NULL) continue;
 
         llvm::PHINode* Phi = llvm::dyn_cast<llvm::PHINode>(UserI);
         if (Phi != NULL) {
@@ -380,7 +579,7 @@ void SimpleFallbackImpl::addContextSaveRestore(llvm::Instruction *Def) {
             // having to touch PHI nodes in PRentry BBs).
 
             // PHINodes at region entries are broken down earlier.
-            assert ("Cannot add context restore for a PHI node at the region entry!" && regionOfBlock(Phi->getParent())->entryBB() != Phi->getParent());
+            //assert ("Cannot add context restore for a PHI node at the region entry!" && regionOfBlock(Phi->getParent())->entryBB() != Phi->getParent());
 
             //std::cerr << "### adding context restore code before PHI" << std::endl;
             //UserI->dump();
@@ -422,6 +621,8 @@ void SimpleFallbackImpl::ctxSaveRestore()
     }
 
 
+    int added = 0;
+
     for (auto &BB : *F) {
         for (auto &Instr : BB) {
 
@@ -429,13 +630,6 @@ void SimpleFallbackImpl::ctxSaveRestore()
             if (shouldNotBeContextSaved(&Instr)){
                 continue;
             }
-
-
-           
-
-           
-            
-           
 
 
             for (llvm::Instruction::use_iterator UI = Instr.use_begin(),UE = Instr.use_end();UI != UE; ++UI) {
@@ -447,7 +641,7 @@ void SimpleFallbackImpl::ctxSaveRestore()
 
                 // User is in same block = NO CONTEXT SAVE
                 llvm::BasicBlock* currentBlock = Instr.getParent();
-                
+
                 llvm::BasicBlock* userBlock = User->getParent();
 
                 if(currentBlock == userBlock){
@@ -455,7 +649,14 @@ void SimpleFallbackImpl::ctxSaveRestore()
                 }
 
 
+                // THIS IS FORCE TO NOT CONTEXT SAVE PRINTF CALLS
+                /* if(added > 1){
+                    continue;
+                } */
+
+
                 InstructionsToFix.push_back(&Instr);
+                added++;
                 break;
             }
             
@@ -540,7 +741,7 @@ void SimpleFallbackImpl::fixMultiRegionVariables(ParallelRegion *Region) {
                 // Allocas (originating from OpenCL C private arrays) should be
                 // privatized always. Otherwise we end up reading the same array,
                 // but replicating only the GEP pointing to it.
-                if (llvm::isa<llvm::AllocaInst>(Instr) ||
+               /*  if (llvm::isa<llvm::AllocaInst>(Instr) ||
                     // If the instruction is used also inside another region (not
                     // in a regionless BB like the B-loop construct BBs), we need
                     // to context save it to pass the private data over.
@@ -550,7 +751,7 @@ void SimpleFallbackImpl::fixMultiRegionVariables(ParallelRegion *Region) {
                         std::cout << "hep" << std::endl;
                         InstructionsToFix.push_back(Instr);
                         break;
-                }
+                } */
 
             } // for (llvm::Instruction::use_iterator UI = Instr->use_begin(),UE = Instr->use_end();UI != UE; ++UI)
 
@@ -577,7 +778,7 @@ void SimpleFallbackImpl::fixMultiRegionVariables(ParallelRegion *Region) {
 bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
 
 
-    //Instr->print(llvm::errs());
+    //Instr->print(llvm::outs());
 
     if (llvm::isa<llvm::BranchInst>(Instr)){
 
@@ -641,6 +842,7 @@ bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
 
 
 
+
 llvm::Instruction * SimpleFallbackImpl::addContextSave(llvm::Instruction *Def, llvm::AllocaInst *AllocaI) {
 
   if (llvm::isa<llvm::AllocaInst>(Def)) {
@@ -661,18 +863,19 @@ llvm::Instruction * SimpleFallbackImpl::addContextSave(llvm::Instruction *Def, l
   std::vector<llvm::Value *> gepArgs;
 
   
-  ParallelRegion *region = regionOfBlock(Def->getParent());
-  assert ("Adding context save outside any region produces illegal code." && 
-          region != NULL);
+  //ParallelRegion *region = regionOfBlock(Def->getParent());
+  //assert ("Adding context save outside any region produces illegal code." && region != NULL);
 
   if (WGDynamicLocalSize) {
-    llvm::Module *M = AllocaI->getParent()->getParent()->getParent();
-    gepArgs.push_back(getLinearWiIndex(builder, M, region));
+    //llvm::Module *M = AllocaI->getParent()->getParent()->getParent();
+    //gepArgs.push_back(getLinearWiIndex(builder, M, region));
+    std::cout << "dynamic" << std::endl;
   } else {
+    std::cout << "not dynamic" << std::endl;
     gepArgs.push_back(llvm::ConstantInt::get(ST, 0));
-    gepArgs.push_back(region->getOrCreateIDLoad(LID_G_NAME(2)));
-    gepArgs.push_back(region->getOrCreateIDLoad(LID_G_NAME(1)));
-    gepArgs.push_back(region->getOrCreateIDLoad(LID_G_NAME(0)));
+    //gepArgs.push_back(region->getOrCreateIDLoad(LID_G_NAME(2)));
+    //gepArgs.push_back(region->getOrCreateIDLoad(LID_G_NAME(1)));
+    //gepArgs.push_back(region->getOrCreateIDLoad(LID_G_NAME(0)));
   }
 
   return builder.CreateStore(
@@ -689,55 +892,11 @@ llvm::Instruction * SimpleFallbackImpl::addContextSave(llvm::Instruction *Def, l
 
 
 
-llvm::Value *SimpleFallbackImpl::getLinearWIIndexInRegion(llvm::Instruction *Instr) {
-  ParallelRegion *ParRegion = regionOfBlock(Instr->getParent());
-  assert(ParRegion != nullptr);
-  llvm::IRBuilder<> Builder(Instr);
-  return getLinearWiIndex(Builder, M, ParRegion);
-}
-
-
-
-
-
-// TO CLEAN: Refactor into getLinearWIIndexInRegion.
-llvm::Value *SimpleFallbackImpl::getLinearWiIndex(llvm::IRBuilder<> &Builder,llvm::Module *M,ParallelRegion *Region) {
-
-  llvm::GlobalVariable *LocalSizeXPtr = llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_local_size_x", ST));
-  llvm::GlobalVariable *LocalSizeYPtr = llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_local_size_y", ST));
-
-  assert(LocalSizeXPtr != NULL && LocalSizeYPtr != NULL);
-
-  llvm::LoadInst *LoadX = Builder.CreateLoad(ST, LocalSizeXPtr, "ls_x");
-  llvm::LoadInst *LoadY = Builder.CreateLoad(ST, LocalSizeYPtr, "ls_y");
-
-  
-  llvm::Value* LocalSizeXTimesY = Builder.CreateBinOp(llvm::Instruction::Mul, LoadX, LoadY, "ls_xy");
-
-  llvm::Value *ZPart =Builder.CreateBinOp(llvm::Instruction::Mul, LocalSizeXTimesY,Region->getOrCreateIDLoad(LID_G_NAME(2)), "tmp");
-
-  llvm::Value *YPart = Builder.CreateBinOp(llvm::Instruction::Mul, LoadX,Region->getOrCreateIDLoad(LID_G_NAME(1)), "ls_x_y");
-
-  llvm::Value* ZYSum = Builder.CreateBinOp(llvm::Instruction::Add, ZPart, YPart,"zy_sum");
-
-  return Builder.CreateBinOp(llvm::Instruction::Add, ZYSum,Region->getOrCreateIDLoad(LID_G_NAME(0)),"linear_xyz_idx");
-}
 
 
  
 
  
-ParallelRegion *SimpleFallbackImpl::regionOfBlock(llvm::BasicBlock *BB) {
-  for (ParallelRegion::ParallelRegionVector::iterator
-           PRI = OriginalParallelRegions.begin(),
-           PRE = OriginalParallelRegions.end();
-       PRI != PRE; ++PRI) {
-    ParallelRegion *PRegion = (*PRI);
-    if (PRegion->hasBlock(BB))
-      return PRegion;
-  }
-  return nullptr;
-}
 
 
 
@@ -756,6 +915,9 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     M = Func.getParent();
     F = &Func;
+
+
+    Func.dump();
 
     Initialize(llvm::cast<Kernel>(&Func));
 
@@ -800,9 +962,35 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     } */
 
 
-    ctxSaveRestore();
+    llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x"));
 
+    // Create new block
+    llvm::BasicBlock *dispatcherBlock = llvm::BasicBlock::Create(F->getContext(), "dispatcher", F);
     
+
+    dispatcher = dispatcherBlock;
+
+    // Build the dispatcher block
+    llvm::IRBuilder<> bBuilder(dispatcherBlock);
+
+
+    // Create function call to __pocl_sched_work_item to retrieve next WI id
+    llvm::Function *schedFunc = M->getFunction("__pocl_sched_work_item");
+
+    // Retrieve the return value, i.e. WI id
+    llvm::Value *nextWI = bBuilder.CreateCall(schedFunc);
+    nextWI->setName("next_wi");
+
+
+    // Store new id as global
+    bBuilder.CreateStore(nextWI, localIdXPtr);
+
+  
+    //ctxSaveRestore();
+    identifyContextVars();
+    allocateContextVars();
+    addSave();
+    addLoad();
 
 
     llvm::Module *M = Func.getParent();
@@ -830,13 +1018,14 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     }
 
 
+    
 
 
      // Create function call to __pocl_sched_init
     llvm::Function *schedFuncI = M->getFunction("__pocl_sched_init");
 
     llvm::GlobalVariable *sgSizePtr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_pocl_sub_group_size"));
-    llvm::Type *uType = llvm::Type::getInt32Ty(M->getContext());
+    llvm::Type *uType = llvm::Type::getInt64Ty(M->getContext());
     
     llvm::Value *sg_size = entryBlockBuilder.CreateLoad(uType,sgSizePtr,"sg_size");
     
@@ -852,15 +1041,18 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     std::vector<llvm::BasicBlock*> barrierExits;
 
 
-    // Create new block
+    /* // Create new block
     llvm::BasicBlock *dispatcherBlock = llvm::BasicBlock::Create(F->getContext(), "dispatcher", F);
-  
+    
+
+    dispatcher = dispatcherBlock; */
+
     llvm::BasicBlock *currBlock = Entry;
 
 
     std::vector<llvm::BasicBlock*> barrierBlocks;
 
-    llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x"));
+    /* llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x")); */
    
     llvm::Value *zeroIndex = llvm::ConstantInt::get(llvm::Type::getInt32Ty(M->getContext()), 0);
 
@@ -872,16 +1064,58 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         }
     }
 
+
+    // Store pointer to old exit here
+    llvm::BasicBlock* oldExitBlock = nullptr;
+
+
     // Modify the barrier blocks
     for(auto &BBlock : barrierBlocks){
 
+        // This is the entry barrier block
+        // Is this bad way to check entry barrier?
+        if(BBlock == &Func.getEntryBlock()){
+
+            std::cout << "ENTRY" << std::endl;
+
+            // We dont want to loop over the entry.barrier
+            // Do not jump to dispatcher from here
+    
+            // This is the next exit block
+
+
+            // In some cases there are none
+            if(BBlock->getTerminator()->getNumSuccessors()>0){
+                barrierExits.push_back(BBlock->getTerminator()->getSuccessor(0));
+                //std::cout << BBlock->getTerminator()->getSuccessor(0)->getName().str()<< std::endl;
+            }
+
+
+            // REMOVE branch to entry and branch to dispatcher instead
+            // THIS DOES NOT WORK
+           /*  llvm::BasicBlock &entry_barrier = F->getEntryBlock();
+
+            llvm::Instruction* entry_term = entry_barrier.getTerminator();
+
+            llvm::IRBuilder<> ebuilder(&entry_barrier);
+            ebuilder.CreateBr(dispatcher);
+
+            entry_term->eraseFromParent(); */
+
+
+
+            std::cout << "BARRIER-entry: " << BBlock->getName().str() << std::endl;
+
+
         // This is the "return" block
-        if(BBlock->getTerminator()->getNumSuccessors() == 0){
+        }else if(BBlock->getTerminator()->getNumSuccessors() == 0){
             std::cout << "BARRIER: " << BBlock->getName().str() << std::endl;
+            
+            
+            
             // Create new kernel exit where we come out as "one"
             llvm::BasicBlock *newExitBlock = llvm::BasicBlock::Create(F->getContext(), "exit_block", F);
             
-
             // This will be the last jump where we exit from the kernel
             barrierExits.push_back(newExitBlock);
 
@@ -912,19 +1146,6 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
            
             
-            
-        
-        // This is the entry barrier block
-        }else if (BBlock->hasNPredecessors(0)){
-
-            // We dont want to loop over the entry.barrier
-            // Do not jump to dispatcher from here
-    
-            // This is the next exit block
-            barrierExits.push_back(BBlock->getTerminator()->getSuccessor(0));
-            //std::cout << BBlock->getTerminator()->getSuccessor(0)->getName().str()<< std::endl;
-
-            std::cout << "BARRIER: " << BBlock->getName().str() << std::endl;
         
         // These are "Explicit" barriers
         }else{
@@ -969,10 +1190,22 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             BBlock->getTerminator()->eraseFromParent();
 
         }
+
+
+        // Note that we can have varying number of barriers in the kernel.
+        // even just one, if there are no explicit barriers.
+        // Above code does not handle that so check that here, refactor later maybe
+        if(barrierExits.size() < 2){
+
+        }
+
+
+
     }
 
-    // Build the dispatcher block
+    /* // Build the dispatcher block
     llvm::IRBuilder<> bBuilder(dispatcherBlock);
+
 
     // Create function call to __pocl_sched_work_item to retrieve next WI id
     llvm::Function *schedFunc = M->getFunction("__pocl_sched_work_item");
@@ -983,7 +1216,12 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
 
     // Store new id as global
-    bBuilder.CreateStore(nextWI, localIdXPtr);
+    bBuilder.CreateStore(nextWI, localIdXPtr); */
+
+    // CONTEXT LOADS HERE
+
+    //ctxSaveRestore();
+
 
     // Pointer to exit index array
     llvm::Value *next_block_ptr = bBuilder.CreateGEP(exitBlockIdxs, nextExitBlockArray, {zeroIndex, nextWI}, "exit_block_ptr");
@@ -998,13 +1236,13 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Create switch statement for exit blocks
     if(barrierExits.size() > 0){
 
-        llvm::ConstantInt *zero = llvm::ConstantInt::get(bBuilder.getInt32Ty(),0);
+        llvm::ConstantInt *zero = llvm::ConstantInt::get(bBuilder.getInt64Ty(),0);
         llvm::SwitchInst *switchInst = bBuilder.CreateSwitch(loadedValue, barrierExits[0]);
     
 
         for(int i = 1; i < barrierExits.size(); i++){
             
-            llvm::ConstantInt *caseValue = llvm::ConstantInt::get(bBuilder.getInt32Ty(), i);
+            llvm::ConstantInt *caseValue = llvm::ConstantInt::get(bBuilder.getInt64Ty(), i);
             
             switchInst->addCase(caseValue, barrierExits[i]);
         }
@@ -1012,6 +1250,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     }
 
     Func.dump();
+
+    //M->dump();
+
+  
 
     return true;
 
