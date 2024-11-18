@@ -582,6 +582,7 @@ pthread_scheduler_get_work (thread_data *td)
   _cl_command_node *cmd = NULL;
   kernel_run_command *run_cmd = NULL;
 
+  printf("LOCKING MUTEX\n");
   /* execute kernel if available */
   POCL_LOCK (scheduler.wq_lock_fast);
   int do_exit = 0;

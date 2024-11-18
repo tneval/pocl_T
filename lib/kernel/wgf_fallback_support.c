@@ -3,29 +3,54 @@
 
 
 static unsigned int sub_group_size;
-/* 
-static int** wi_barrier_status;
-
-static int* sub_group_barrier_status; */
 
 static int n_subgroups;
-
 
 static int waiting_count;
 
 static int sg_barriers_active;
 
 
-// alternative approach, dont store arrays with individual wis, but count wis per sg
-
 static int* sg_wi_counter;
 static int* sg_barrier_status;
 
 
-#define DBG
 
 
-void __pocl_next_jump(int idx){
+//#define DBG
+
+
+
+void __pocl_sched_init(long sg_size, long x_size)
+//void __pocl_sched_init(unsigned int sg_size, unsigned int x_size)
+{
+
+#ifdef DBG
+    fprintf(stdout, "SCHEDULER>> init called %u\t%d\n",sg_size,x_size);
+#endif
+
+    sub_group_size = sg_size;
+
+    n_subgroups = x_size/sg_size;
+
+    waiting_count = 0;
+
+    sg_barriers_active = 0;
+
+    sg_wi_counter = malloc(n_subgroups * sizeof(int));
+    sg_barrier_status = malloc(n_subgroups * sizeof(int));
+
+    for(int i = 0; i< n_subgroups; i++){
+        sg_wi_counter[i] = 0;
+        sg_barrier_status[i] = 0;
+    }
+}
+
+
+
+
+
+void __pocl_next_jump(long idx){
     fprintf(stdout, "jumping next to index: %d\n",idx);
 }
 
@@ -35,7 +60,7 @@ static void resolve_barriers()
 {   
 
 #ifdef DBG
-    fprintf(stdout, "SCHEDULER>> resolving barriers\n");
+    fprintf(stdout, "SCHEDULER>> BEFORE resolving barriers\n");
     fprintf(stdout, "SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\tsg_wi_counter[0]: %d\tsg_wi_counter[1]: %d\tsg_barrier_status[0]: %d\tsg_barrier_status[1]:%d\n",waiting_count,sg_barriers_active,sg_wi_counter[0],sg_wi_counter[1],sg_barrier_status[0],sg_barrier_status[1]);
 #endif
 
@@ -73,11 +98,18 @@ static void resolve_barriers()
             }
         }
     }
+
+#ifdef DBG
+    fprintf(stdout, "SCHEDULER>> AFTER resolving barriers\n");
+    fprintf(stdout, "SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\tsg_wi_counter[0]: %d\tsg_wi_counter[1]: %d\tsg_barrier_status[0]: %d\tsg_barrier_status[1]:%d\n",waiting_count,sg_barriers_active,sg_wi_counter[0],sg_wi_counter[1],sg_barrier_status[0],sg_barrier_status[1]);
+#endif
+
+
 }
 
 
 
-/* static void print_barrier_status(){
+static void print_barrier_status(){
 
     for(int i = 0; i < n_subgroups; i++){
         
@@ -85,37 +117,11 @@ static void resolve_barriers()
     }
     fprintf(stdout,"\n");
 
-} */
-
-
-void __pocl_sched_init(unsigned int sg_size, unsigned int x_size)
-{
-
-#ifdef DBG
-    fprintf(stdout, "SCHEDULER>> init called %u\t%d\n",sg_size,x_size);
-#endif
-
-    fprintf(stdout, "SCHEDULER>> init called %u\t%d\n",sg_size,x_size);
-
-    sub_group_size = sg_size;
-
-    n_subgroups = x_size/sg_size;
-
-    waiting_count = 0;
-
-    sg_barriers_active = 0;
-
-    sg_wi_counter = malloc(n_subgroups * sizeof(int));
-    sg_barrier_status = malloc(n_subgroups * sizeof(int));
-
-    for(int i = 0; i< n_subgroups; i++){
-        sg_wi_counter[i] = 0;
-        sg_barrier_status[i] = 0;
-    }
 }
 
 
-void __pocl_barrier_reached(int local_id_x)
+
+void __pocl_barrier_reached(long local_id_x)
 {
     
 
@@ -131,15 +137,16 @@ void __pocl_barrier_reached(int local_id_x)
 #ifdef DBG
     fprintf(stdout, "SCHEDULER>> BARRIER REACHED\n");
     fprintf(stdout, "SCHEDULER>> sg_id: %d\t sg_local_id: %d\n",sg_id, sg_local_id);
+    print_barrier_status();
 #endif
-    //print_barrier_status();
+    
 
     //resolve_barriers();
 
 }
 
 
-void __pocl_sg_barrier_reached(int local_id_x)
+void __pocl_sg_barrier_reached(long local_id_x)
 {
 
     
@@ -160,13 +167,9 @@ void __pocl_sg_barrier_reached(int local_id_x)
 #ifdef DBG
     fprintf(stdout, "SCHEDULER>> SG BARRIER REACHED\n");
     fprintf(stdout, "SCHEDULER>> sg_id: %d\t sg_local_id: %d\n",sg_id, sg_local_id);
+    print_barrier_status();
     
 #endif
-
-    //print_barrier_status();
-    
-
-   
 
 
     // Resolve barrier immediately if possible, to avoid extra function calls
@@ -202,18 +205,7 @@ void __pocl_sched_clean()
 
     fprintf(stdout, "SCHEDULER>> clean called\n");
 
-    /* free(sub_group_barrier_status);
-
-    for(int sg_i = 0; sg_i < n_subgroups; sg_i++){
-        free(wi_barrier_status[sg_i]);
-    }
-
-    free(wi_barrier_status); */
-
-
-    // ALT
-
-    /* free(sg_wi_counter);
-    free(sg_barrier_status); */
+    free(sg_wi_counter);
+    free(sg_barrier_status);
 
 }

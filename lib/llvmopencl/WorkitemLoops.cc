@@ -183,6 +183,8 @@ bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
   dumpCFG(*F, F->getName().str() + "_after_wiloops.dot", nullptr,
           &OriginalParallelRegions);
 #endif
+  
+  F->dump();
 
   Changed |= fixUndominatedVariableUses(DT, Func);
 
@@ -483,7 +485,7 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
      detect diverging regions that need to be peeled. */
   std::map<llvm::BasicBlock*, int> entryCounts;
 
-   F.dump();
+   //F.dump();
   for (ParallelRegion::ParallelRegionVector::iterator
            PRI = OriginalParallelRegions.begin(),
            PRE = OriginalParallelRegions.end();
@@ -496,7 +498,7 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
     fixMultiRegionVariables(Region);
     entryCounts[Region->entryBB()]++;
   }
-   F.dump();
+   //F.dump();
 #if 0
   std::cerr << "### After context code addition:" << std::endl;
   F.viewCFG();
