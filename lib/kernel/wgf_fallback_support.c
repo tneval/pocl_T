@@ -2,17 +2,25 @@
 #include <stdlib.h>
 
 
+// WG dimensions
+static unsigned int local_size_x;
+static unsigned int local_size_y;
+static unsigned int local_size_z;
+
+
+// Subgroup size
 static unsigned int sub_group_size;
 
-static int n_subgroups;
+// Number of subgroups
+static unsigned int n_subgroups;
 
 static int waiting_count;
 
 static int sg_barriers_active;
 
 
-static int* sg_wi_counter;
-static int* sg_barrier_status;
+static unsigned int* sg_wi_counter;
+static unsigned int* sg_barrier_status;
 
 
 
@@ -21,17 +29,18 @@ static int* sg_barrier_status;
 
 
 
-void __pocl_sched_init(long sg_size, long x_size)
-//void __pocl_sched_init(unsigned int sg_size, unsigned int x_size)
+void __pocl_sched_init(long x_size, long y_size, long z_size, long sg_size)
 {
 
 #ifdef DBG
-    fprintf(stdout, "SCHEDULER>> init called %u\t%d\n",sg_size,x_size);
+    fprintf(stdout, "SCHEDULER>> init called %ld\t%ld\t%ld\t%ld\n",sg_size,x_size,y_size,z_size);
 #endif
 
     sub_group_size = sg_size;
 
-    n_subgroups = x_size/sg_size;
+
+
+    n_subgroups = (x_size*y_size*z_size)/sg_size;
 
     waiting_count = 0;
 
@@ -61,7 +70,16 @@ static void resolve_barriers()
 
 #ifdef DBG
     fprintf(stdout, "SCHEDULER>> BEFORE resolving barriers\n");
-    fprintf(stdout, "SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\tsg_wi_counter[0]: %d\tsg_wi_counter[1]: %d\tsg_barrier_status[0]: %d\tsg_barrier_status[1]:%d\n",waiting_count,sg_barriers_active,sg_wi_counter[0],sg_wi_counter[1],sg_barrier_status[0],sg_barrier_status[1]);
+    fprintf(stdout, "SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",waiting_count,sg_barriers_active);
+
+    for(int i = 0; i<n_subgroups; i++){
+        fprintf(stdout,"sg_wi_counter[%d]: %d\t",i,sg_wi_counter[i]);
+    }
+    for(int i = 0; i<n_subgroups; i++){
+        fprintf(stdout,"sg_barrier_status[%d]: %d\t",i,sg_barrier_status[i]);
+    }
+    fprintf(stdout, "\n");
+
 #endif
 
     // Case when no sg barriers are encountered
@@ -101,7 +119,15 @@ static void resolve_barriers()
 
 #ifdef DBG
     fprintf(stdout, "SCHEDULER>> AFTER resolving barriers\n");
-    fprintf(stdout, "SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\tsg_wi_counter[0]: %d\tsg_wi_counter[1]: %d\tsg_barrier_status[0]: %d\tsg_barrier_status[1]:%d\n",waiting_count,sg_barriers_active,sg_wi_counter[0],sg_wi_counter[1],sg_barrier_status[0],sg_barrier_status[1]);
+    fprintf(stdout, "SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",waiting_count,sg_barriers_active);
+
+    for(int i = 0; i<n_subgroups; i++){
+        fprintf(stdout,"sg_wi_counter[%d]: %d\t",i,sg_wi_counter[i]);
+    }
+    for(int i = 0; i<n_subgroups; i++){
+        fprintf(stdout,"sg_barrier_status[%d]: %d\t",i,sg_barrier_status[i]);
+    }
+    fprintf(stdout, "\n");
 #endif
 
 
@@ -121,12 +147,17 @@ static void print_barrier_status(){
 
 
 
-void __pocl_barrier_reached(long local_id_x)
+void __pocl_barrier_reached(long local_id_x, long local_id_y, long local_id_z)
 {
     
 
-    int sg_id = local_id_x / sub_group_size;
-    int sg_local_id = local_id_x % sub_group_size;
+    // Linearize wg id
+    unsigned int linearId = ((local_id_z*local_size_y*local_size_x)+(local_id_y*local_size_x)+local_id_x);
+
+
+
+    int sg_id = linearId / sub_group_size;
+    int sg_local_id = linearId % sub_group_size;
 
 
 
@@ -146,13 +177,14 @@ void __pocl_barrier_reached(long local_id_x)
 }
 
 
-void __pocl_sg_barrier_reached(long local_id_x)
+void __pocl_sg_barrier_reached(long local_id_x, long local_id_y, long local_id_z)
 {
 
-    
+    // Linearize wg id
+    unsigned int linearId = ((local_id_z*local_size_y*local_size_x)+(local_id_y*local_size_x)+local_id_x);
 
-    int sg_id = local_id_x / sub_group_size;
-    int sg_local_id = local_id_x % sub_group_size;
+    int sg_id = linearId / sub_group_size;
+    int sg_local_id = linearId % sub_group_size;
 
 
     // Only increase the sg barrier counter when the first wi of the subgroup comes in
