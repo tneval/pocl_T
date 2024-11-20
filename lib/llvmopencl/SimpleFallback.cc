@@ -557,17 +557,31 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::Value *linearWI = bBuilder.CreateCall(schedFunc);
     linearWI->setName("next_linear_wi");
 
-   /*  llvm::Value *loc_x = bBuilder.CreateBinOp(
-        llvm::Instruction::BinaryOps::SRem, linearWI ,WGLocalSizeX, "loc_x");
- */
+
+    llvm::Value *xSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeX);
+    llvm::Value *ySize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeY);
+    llvm::Value *zSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeZ);
+
+    // X 
+    llvm::Value *loc_x = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI ,xSize, "loc_id_x");
+
+    // Y
+    unsigned int mult_xy_sizes = WGLocalSizeX*WGLocalSizeY;
+    llvm::Value *xy_mult = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),mult_xy_sizes);
+    llvm::Value *loc_y_tmp = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI,xy_mult, "loc_id_y_tmp");
+    llvm::Value *loc_y = bBuilder.CreateBinOp(llvm::Instruction::UDiv, loc_y_tmp, xSize, "loc_id_y");
+
+    // Z
+    llvm::Value *loc_z = bBuilder.CreateBinOp(llvm::Instruction::UDiv, linearWI, xy_mult, "loc_id_z");
 
 
-    //int x = *nextWI%WGLocalSizeX;
+    // Store new ids
+    bBuilder.CreateStore(loc_x, localIdXPtr);
+    bBuilder.CreateStore(loc_y, localIdYPtr);
+    bBuilder.CreateStore(loc_z, localIdZPtr);
 
-    // Store new id as global
-    bBuilder.CreateStore(linearWI, localIdXPtr);
 
-  
+    ///// Dispatcher part ends here
 
     ////////////  
     identifyContextVars();
@@ -814,10 +828,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     // Retrieve exit index based for current local_id_x
     llvm::Value *loadedValue = bBuilder.CreateLoad(bBuilder.getInt64Ty(), next_block_ptr, "next_exit_block");
-    
+    /* 
     llvm::Function *nextI = M->getFunction("__pocl_next_jump");
     bBuilder.CreateCall(nextI, {loadedValue});
-    
+     */
     
     // Create switch statement for exit blocks
     if(barrierExits.size() > 0){

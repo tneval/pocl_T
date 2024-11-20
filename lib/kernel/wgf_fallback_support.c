@@ -38,6 +38,10 @@ void __pocl_sched_init(long x_size, long y_size, long z_size, long sg_size)
 
     sub_group_size = sg_size;
 
+    // Set wg dimensions for scheduler
+    local_size_x = x_size;
+    local_size_y = y_size;
+    local_size_z = z_size;
 
 
     n_subgroups = (x_size*y_size*z_size)/sg_size;
@@ -154,12 +158,8 @@ void __pocl_barrier_reached(long local_id_x, long local_id_y, long local_id_z)
     // Linearize wg id
     unsigned int linearId = ((local_id_z*local_size_y*local_size_x)+(local_id_y*local_size_x)+local_id_x);
 
-
-
     int sg_id = linearId / sub_group_size;
     int sg_local_id = linearId % sub_group_size;
-
-
 
     waiting_count++;
 
@@ -167,7 +167,7 @@ void __pocl_barrier_reached(long local_id_x, long local_id_y, long local_id_z)
 
 #ifdef DBG
     fprintf(stdout, "SCHEDULER>> BARRIER REACHED\n");
-    fprintf(stdout, "SCHEDULER>> sg_id: %d\t sg_local_id: %d\n",sg_id, sg_local_id);
+    fprintf(stdout, "SCHEDULER>> linearID: %d\tlocal_id_x: %d\tlocal_id_y: %d\tlocal_id_z: %d\tsg_id: %d\t sg_local_id: %d\n",linearId,local_id_x,local_id_y,local_id_z,sg_id, sg_local_id);
     print_barrier_status();
 #endif
     
