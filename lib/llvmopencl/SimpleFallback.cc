@@ -92,9 +92,6 @@ private:
 
     VariableUniformityAnalysisResult &VUA;
 
-    llvm::BasicBlock* dispatcher;
-
-
     ParallelRegion::ParallelRegionVector OriginalParallelRegions;
     
     StrInstructionMap ContextArrays;
@@ -235,17 +232,11 @@ void SimpleFallbackImpl::addSave()
         std::cout << "\n";
     } */
     
-    
-
-
-    // cant insert here due to dominance
-    //llvm::IRBuilder<> ctxSaveBuilder(dispatcher, dispatcher->begin());
-
     llvm::Type *uType = llvm::Type::getInt64Ty(M->getContext());
     llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x"));
     llvm::GlobalVariable *localIdYPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_y"));
     llvm::GlobalVariable *localIdZPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_z"));
-
+    
 
     for(int i = 0; i< contextVars.size(); i++){
 
@@ -306,10 +297,7 @@ void SimpleFallbackImpl::addSave()
             UserI->replaceUsesOfWith(contextVars[i], LoadedValue);
         
         }
-
-
     }
-    
 }
 
 
@@ -324,8 +312,6 @@ llvm::GetElementPtrInst* SimpleFallbackImpl::getGEP(llvm::AllocaInst *CtxArrayAl
     llvm::GlobalVariable *localIdXPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_x"));
     llvm::GlobalVariable *localIdYPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_y"));
     llvm::GlobalVariable *localIdZPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_z"));
-
-    //llvm::IRBuilder<> ctxLoadBuilder(dispatcher);
 
     llvm::IRBuilder<> ctxLoadBuilder(Before);
 
@@ -353,9 +339,6 @@ llvm::GetElementPtrInst* SimpleFallbackImpl::getGEP(llvm::AllocaInst *CtxArrayAl
 
 
     return GEP;
-
-
-  
 
 }
 
@@ -523,12 +506,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(1), ST)),
     llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(2), ST))};
 
-    //llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(std::string("_pocl_sub_group_size"),ST));
-    
-
     TempInstructionIndex = 0;
-
-    
 
     handleWorkitemFunctions();
 
@@ -539,76 +517,45 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::GlobalVariable *localIdYPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_y"));
     llvm::GlobalVariable *localIdZPtr = llvm::cast<llvm::GlobalVariable>(M->getGlobalVariable("_local_id_z"));
 
+    // Declare offset variables for global ids
+    llvm::GlobalVariable *globalOffsetXPtr = llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(std::string("_global_offset_x"), ST));
+    llvm::GlobalVariable *globalOffsetYPtr = llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(std::string("_global_offset_y"), ST));
+    llvm::GlobalVariable *globalOffsetZPtr = llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(std::string("_global_offset_z"), ST));
+
+
+
+    llvm::GlobalVariable *globalGroupIDXPtr = llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(std::string("_group_id_x"), ST));
+    llvm::GlobalVariable *globalGroupIDYPtr = llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(std::string("_group_id_y"), ST));
+    llvm::GlobalVariable *globalGroupIDZPtr = llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(std::string("_group_id_z"), ST));
+
     llvm::Type *uType = llvm::Type::getInt64Ty(M->getContext());
     
 
 
-    // Create new block
+    // Create new block for dispatcher; dispathcer block manipulation is done later. Need this for reference below
     llvm::BasicBlock *dispatcherBlock = llvm::BasicBlock::Create(F->getContext(), "dispatcher", F);
     
 
-    dispatcher = dispatcherBlock;
 
-    // Build the dispatcher block
-    llvm::IRBuilder<> bBuilder(dispatcherBlock);
-
-
-    // Create function call to __pocl_sched_work_item to retrieve next WI id
-    llvm::Function *schedFunc = M->getFunction("__pocl_sched_work_item");
-
-    // Retrieve the return value, i.e. WI id
-    llvm::Value *linearWI = bBuilder.CreateCall(schedFunc);
-    linearWI->setName("next_linear_wi");
-
-
-    llvm::Value *xSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeX);
-    llvm::Value *ySize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeY);
-    llvm::Value *zSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeZ);
-
-    // X 
-    llvm::Value *loc_x = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI ,xSize, "loc_id_x");
-
-    // Y
-    unsigned int mult_xy_sizes = WGLocalSizeX*WGLocalSizeY;
-    llvm::Value *xy_mult = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),mult_xy_sizes);
-    llvm::Value *loc_y_tmp = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI,xy_mult, "loc_id_y_tmp");
-    llvm::Value *loc_y = bBuilder.CreateBinOp(llvm::Instruction::UDiv, loc_y_tmp, xSize, "loc_id_y");
-
-    // Z
-    llvm::Value *loc_z = bBuilder.CreateBinOp(llvm::Instruction::UDiv, linearWI, xy_mult, "loc_id_z");
-
-
-    // Store new ids
-    bBuilder.CreateStore(loc_x, localIdXPtr);
-    bBuilder.CreateStore(loc_y, localIdYPtr);
-    bBuilder.CreateStore(loc_z, localIdZPtr);
-
-
-    llvm::Instruction* tsti = getGlobalIdOrigin(0);
-
-
-
-
-    std::cout << "1\n";
-
-    ///// Dispatcher part ends here
-
-    ////////////  
+    /////////////////////////
+    // Context save/restore
     identifyContextVars();
     allocateContextVars();
     addSave();
     
+    /////////////////////////
 
-    std::cout << "2\n";
+    
 
-    llvm::Module *M = Func.getParent();
+    /////////////////////////////////////////////////////////
+    // Begin processing actual function
 
+    //llvm::Module *M = Func.getParent();
 
     llvm::BasicBlock *Entry = &Func.getEntryBlock();
 
     // Initialize local id to 0
     insertLocalIdInit_(Entry);
-
 
     llvm::IRBuilder<> entryBlockBuilder(Entry, Entry->begin());
 
@@ -616,6 +563,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Array for exit block indices
     llvm::Type *Int64Ty = llvm::Type::getInt64Ty(M->getContext());
 
+    // Total number of wi:s
     unsigned int n_wi = WGLocalSizeX*WGLocalSizeY*WGLocalSizeZ;
 
     //llvm::ArrayType *exitBlockIdxs = llvm::ArrayType::get(Int64Ty, n_wi);
@@ -639,15 +587,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
                 entryBlockBuilder.CreateStore(entryBlockBuilder.getInt64(0), exitBidxPtr);
             }
         }
-        
     }
 
-    
-    std::cout << "3\n";
+   
 
-
-    //M->dump();
-    
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     // Init call: Instead of relying global variables, use the metadata
@@ -674,9 +617,9 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
 
+
     // Store exit blocks after barriers
     std::vector<llvm::BasicBlock*> barrierExits;
-
 
     llvm::BasicBlock *currBlock = Entry;
 
@@ -684,7 +627,6 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Store barrier blocks
     std::vector<llvm::BasicBlock*> barrierBlocks;
 
-    std::cout << "4\n";
    
     llvm::Value *zeroIndex = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), 0);
 
@@ -700,7 +642,6 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Store pointer to old exit here
     llvm::BasicBlock* oldExitBlock = nullptr;
 
-    std::cout << "5\n";
     // Modify the barrier blocks
     for(auto &BBlock : barrierBlocks){
 
@@ -718,16 +659,20 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
                 //std::cout << BBlock->getTerminator()->getSuccessor(0)->getName().str()<< std::endl;
             }
 
-
-
             //std::cout << "BARRIER-entry: " << BBlock->getName().str() << std::endl;
+
+            // Add branch to dispatcher
+            llvm::IRBuilder<> entryBuilder(BBlock->getTerminator());
+            entryBuilder.CreateBr(dispatcherBlock);
+
+            // This removes the old branch
+            BBlock->getTerminator()->eraseFromParent();
+
 
 
         // This is the "return" block
         }else if(BBlock->getTerminator()->getNumSuccessors() == 0){
             //std::cout << "BARRIER: " << BBlock->getName().str() << std::endl;
-            
-            
             
             // Create new kernel exit where we come out as "one"
             llvm::BasicBlock *newExitBlock = llvm::BasicBlock::Create(F->getContext(), "exit_block", F);
@@ -772,8 +717,6 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             newExitBlockBuilder.CreateRetVoid();
 
            
-            
-        
         // These are "Explicit" barriers
         }else{
             
@@ -783,8 +726,6 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             }else if(SubgroupBarrier::hasSGBarrier(BBlock)){
                 std::cout << "SG BARRIER:" << BBlock->getName().str() << std::endl;
             }
-
-
 
              // This is the next exit block
             barrierExits.push_back(BBlock->getTerminator()->getSuccessor(0));
@@ -822,24 +763,87 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             BBlock->getTerminator()->eraseFromParent();
 
         }
-
-
-        // Note that we can have varying number of barriers in the kernel.
-        // even just one, if there are no explicit barriers.
-        // Above code does not handle that so check that here, refactor later maybe
-        if(barrierExits.size() < 2){
-
-        }
-
-
-
     }
 
-    std::cout << "7\n";
+
+    ////////////////////////////////////////////////////////////
+    // Actual dispatcher implementation
+
+    // Build the dispatcher block
+    llvm::IRBuilder<> bBuilder(dispatcherBlock);
+
+
+    // Create function call to __pocl_sched_work_item to retrieve next WI id
+    llvm::Function *schedFunc = M->getFunction("__pocl_sched_work_item");
+
+    // Retrieve the return value, i.e. WI id
+    llvm::Value *linearWI = bBuilder.CreateCall(schedFunc);
+    linearWI->setName("next_linear_wi");
+
+
+    llvm::Value *xSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeX);
+    llvm::Value *ySize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeY);
+    llvm::Value *zSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeZ);
+
+    // X 
+    llvm::Value *loc_x = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI ,xSize, "loc_id_x");
+
+    // Y
+    unsigned int mult_xy_sizes = WGLocalSizeX*WGLocalSizeY;
+    llvm::Value *xy_mult = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),mult_xy_sizes);
+    llvm::Value *loc_y_tmp = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI,xy_mult, "loc_id_y_tmp");
+    llvm::Value *loc_y = bBuilder.CreateBinOp(llvm::Instruction::UDiv, loc_y_tmp, xSize, "loc_id_y");
+
+    // Z
+    llvm::Value *loc_z = bBuilder.CreateBinOp(llvm::Instruction::UDiv, linearWI, xy_mult, "loc_id_z");
+
+
+    // Store new ids
+    bBuilder.CreateStore(loc_x, localIdXPtr);
+    bBuilder.CreateStore(loc_y, localIdYPtr);
+    bBuilder.CreateStore(loc_z, localIdZPtr);
+
+
 
     llvm::Value *local_z = bBuilder.CreateLoad(uType,localIdZPtr,"local_z");
     llvm::Value *local_y = bBuilder.CreateLoad(uType,localIdYPtr,"local_y");
     llvm::Value *local_x = bBuilder.CreateLoad(uType,localIdXPtr,"local_x");
+
+
+    
+
+    // These should be included to global id calculation
+    llvm::Value* x_offset = bBuilder.CreateLoad(uType, globalOffsetXPtr,"_offset_x");
+    llvm::Value* y_offset = bBuilder.CreateLoad(uType, globalOffsetYPtr,"_offset_y");
+    llvm::Value* z_offset = bBuilder.CreateLoad(uType, globalOffsetZPtr,"_offset_z");
+
+
+    llvm::Value* x_gid = bBuilder.CreateLoad(uType, globalGroupIDXPtr, "group_id_x");
+    llvm::Value* y_gid = bBuilder.CreateLoad(uType, globalGroupIDYPtr, "group_id_y");
+    llvm::Value* z_gid = bBuilder.CreateLoad(uType, globalGroupIDZPtr, "group_id_z");
+
+
+    llvm::Value* multX = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeX, false), x_gid, "mulx");
+    llvm::Value* gid_x = bBuilder.CreateAdd(multX, local_x, "gid_x");
+
+
+    llvm::Value* multY = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeY, false), y_gid, "muly");
+    llvm::Value* gid_y = bBuilder.CreateAdd(multY, local_y, "gid_y");
+
+    //bBuilder.CreateStore(gid_x, GlobalIdIterators[0]);
+    bBuilder.CreateStore(gid_x, GlobalIdIterators[0]);
+
+
+    bBuilder.CreateStore(gid_y, GlobalIdIterators[1]);
+
+
+
+    //global_id(dim)=global_offset(dim)+local_work_size(dim)×group_id(dim)+local_id(dim)
+
+
+    //bBuilder.CreateStore(x_offset,GlobalIdIterators[0]);
+    //bBuilder.CreateStore(y_offset, GlobalIdIterators[1]);
+    bBuilder.CreateStore(z_offset, GlobalIdIterators[2]);
 
     // Pointer to exit index array
     //llvm::Value *next_block_ptr = bBuilder.CreateGEP(exitBlockIdxs, nextExitBlockArray, {zeroIndex, nextWI}, "exit_block_ptr");
@@ -867,6 +871,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         }
 
     }
+
+    // End of dispatcher manipulation
+    ////////////////////////////////////////////////////////////
+
 
     //Func.dump();
 
