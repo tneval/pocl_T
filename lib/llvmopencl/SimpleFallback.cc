@@ -523,6 +523,9 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(1), ST)),
     llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(2), ST))};
 
+    //llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(std::string("_pocl_sub_group_size"),ST));
+    
+
     TempInstructionIndex = 0;
 
     
@@ -581,6 +584,13 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     bBuilder.CreateStore(loc_z, localIdZPtr);
 
 
+    llvm::Instruction* tsti = getGlobalIdOrigin(0);
+
+
+
+
+    std::cout << "1\n";
+
     ///// Dispatcher part ends here
 
     ////////////  
@@ -589,6 +599,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     addSave();
     
 
+    std::cout << "2\n";
 
     llvm::Module *M = Func.getParent();
 
@@ -631,32 +642,37 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         
     }
 
+    
+    std::cout << "3\n";
 
 
-
+    //M->dump();
     
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Init call: Instead of relying global variables, use the metadata
 
      // Create function call to __pocl_sched_init
     llvm::Function *schedFuncI = M->getFunction("__pocl_sched_init");
 
-    llvm::GlobalVariable *sgSizePtr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_pocl_sub_group_size"));
-    //llvm::Type *uType = llvm::Type::getInt64Ty(M->getContext());
-    
-    llvm::Value *sg_size = entryBlockBuilder.CreateLoad(uType,sgSizePtr,"sg_size");
-    
-    llvm::GlobalVariable *xSizePtr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_size_x"));
-    llvm::GlobalVariable *ySizePtr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_size_y"));
-    llvm::GlobalVariable *zSizePtr = llvm::cast<llvm::GlobalVariable>(Func.getParent()->getGlobalVariable("_local_size_z"));
+    llvm::ConstantInt* x_size = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeX, false);
+    llvm::ConstantInt* y_size = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeY, false);
+    llvm::ConstantInt* z_size = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeZ, false);
 
-    llvm::Value *x_size = entryBlockBuilder.CreateLoad(uType,xSizePtr,"x_size");
-    llvm::Value *y_size = entryBlockBuilder.CreateLoad(uType, ySizePtr, "y_size");
-    llvm::Value *z_size = entryBlockBuilder.CreateLoad(uType, zSizePtr, "z_size");
+    llvm::ConstantInt* sgSize;
+
+    if (llvm::MDNode *SGSizeMD = F->getMetadata("intel_reqd_sub_group_size")) {
+        // Use the constant from the metadata.
+        llvm::ConstantAsMetadata *ConstMD = llvm::cast<llvm::ConstantAsMetadata>(SGSizeMD->getOperand(0));
+        sgSize = llvm::cast<llvm::ConstantInt>(ConstMD->getValue());    
+    }else{
+        sgSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeX, false);
+    }
 
     // This will pass the sg size and local size to init function.
-    entryBlockBuilder.CreateCall(schedFuncI, {x_size, y_size, z_size, sg_size});
+    entryBlockBuilder.CreateCall(schedFuncI, {x_size, y_size, z_size, sgSize});
 
-    
+    ////////////////////////////////////////////////////////////////////////////////////////////
 
     // Store exit blocks after barriers
     std::vector<llvm::BasicBlock*> barrierExits;
@@ -668,7 +684,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Store barrier blocks
     std::vector<llvm::BasicBlock*> barrierBlocks;
 
-
+    std::cout << "4\n";
    
     llvm::Value *zeroIndex = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), 0);
 
@@ -684,9 +700,11 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Store pointer to old exit here
     llvm::BasicBlock* oldExitBlock = nullptr;
 
-
+    std::cout << "5\n";
     // Modify the barrier blocks
     for(auto &BBlock : barrierBlocks){
+
+        std::cout << "6\n";
 
         // This is the entry barrier block
         // Is this bad way to check entry barrier?
@@ -747,9 +765,9 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             llvm::IRBuilder<> newExitBlockBuilder(newExitBlock);
 
 
-            /* llvm::Function *schedClean = M->getFunction("__pocl_sched_clean");
+            llvm::Function *schedClean = M->getFunction("__pocl_sched_clean");
 
-            newExitBlockBuilder.CreateCall(schedClean); */
+            newExitBlockBuilder.CreateCall(schedClean);
 
             newExitBlockBuilder.CreateRetVoid();
 
@@ -817,6 +835,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     }
 
+    std::cout << "7\n";
 
     llvm::Value *local_z = bBuilder.CreateLoad(uType,localIdZPtr,"local_z");
     llvm::Value *local_y = bBuilder.CreateLoad(uType,localIdYPtr,"local_y");
@@ -828,10 +847,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     // Retrieve exit index based for current local_id_x
     llvm::Value *loadedValue = bBuilder.CreateLoad(bBuilder.getInt64Ty(), next_block_ptr, "next_exit_block");
-    /* 
+    
     llvm::Function *nextI = M->getFunction("__pocl_next_jump");
     bBuilder.CreateCall(nextI, {loadedValue});
-     */
+    
     
     // Create switch statement for exit blocks
     if(barrierExits.size() > 0){
@@ -849,7 +868,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     }
 
-    Func.dump();
+    //Func.dump();
 
     //M->dump();
 
@@ -896,7 +915,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 
     //F.dump();
 
-    dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
+    //dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
 
 
     auto &DT = AM.getResult<llvm::DominatorTreeAnalysis>(F);
@@ -914,11 +933,13 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
     SimpleFallbackImpl WIL(DT, LI, PDT, VUA);
 
 
-    //dumpCFG(F, F.getName().str() + "_after_fallback.dot", nullptr,nullptr);
+    dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
+
+    F.dump();
 
     bool ret_val = WIL.runOnFunction(F);
     
-    //F.dump();
+    F.dump();
    
     dumpCFG(F, F.getName().str() + "AFTER_FALLBACK.dot", nullptr,nullptr);
 

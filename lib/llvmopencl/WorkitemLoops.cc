@@ -165,6 +165,7 @@ bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
 
   M = Func.getParent();
   F = &Func;
+  //M->dump();
   
   Initialize(cast<Kernel>(&Func));
  
@@ -177,6 +178,8 @@ bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
 
   bool Changed = processFunction(Func);
 
+  M->dump();
+  
   Changed |= handleLocalMemAllocas();
 
 #ifdef DUMP_CFGS
@@ -184,7 +187,7 @@ bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
           &OriginalParallelRegions);
 #endif
   
-  F->dump();
+  //F->dump();
 
   Changed |= fixUndominatedVariableUses(DT, Func);
 
@@ -1118,7 +1121,10 @@ llvm::PreservedAnalyses WorkitemLoops::run(llvm::Function &F,
   WorkitemLoopsImpl WIL(DT, LI, PDT, VUA);
   // llvm::verifyFunction(F);
 
+
+
   return WIL.runOnFunction(F) ? PAChanged : PreservedAnalyses::all();
+
 }
 
 bool WorkitemLoops::canHandleKernel(llvm::Function &K,

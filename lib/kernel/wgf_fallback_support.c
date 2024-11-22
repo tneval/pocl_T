@@ -25,7 +25,7 @@ static unsigned int* sg_barrier_status;
 
 
 
-//#define DBG
+#define DBG
 
 
 

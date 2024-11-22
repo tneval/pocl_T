@@ -71,8 +71,11 @@ static bool needsPHIsToAllocas(Function &F, WorkitemHandlerType WIH) {
   if (!isKernelToProcess(F))
     return false;
 
-  if (WIH != WorkitemHandlerType::LOOPS &&
-      !(RunWithCBS && WIH == WorkitemHandlerType::CBS))
+
+  return true;
+
+  if ((WIH != WorkitemHandlerType::LOOPS &&
+      !(RunWithCBS && WIH == WorkitemHandlerType::CBS)))
     return false;
 
   return true;
