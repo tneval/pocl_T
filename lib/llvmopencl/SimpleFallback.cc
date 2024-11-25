@@ -609,7 +609,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         llvm::ConstantAsMetadata *ConstMD = llvm::cast<llvm::ConstantAsMetadata>(SGSizeMD->getOperand(0));
         sgSize = llvm::cast<llvm::ConstantInt>(ConstMD->getValue());    
     }else{
-        sgSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeX, false);
+        sgSize = llvm::ConstantInt::get(llvm::Type::getInt32Ty(F->getContext()), WGLocalSizeX, false);
     }
 
     // This will pass the sg size and local size to init function.
