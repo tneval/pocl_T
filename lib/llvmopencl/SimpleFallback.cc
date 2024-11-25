@@ -943,11 +943,11 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 
     dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
 
-    F.dump();
+    //F.dump();
 
     bool ret_val = WIL.runOnFunction(F);
     
-    F.dump();
+    //F.dump();
    
     dumpCFG(F, F.getName().str() + "AFTER_FALLBACK.dot", nullptr,nullptr);
 
