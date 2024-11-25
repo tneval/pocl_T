@@ -140,7 +140,7 @@ vstore_half.cl
 wait_group_events.cl
 work_group.c
 write_image.cl
-
+wgf_fallback_support.c
 ###################################################################
 
 # from libclc

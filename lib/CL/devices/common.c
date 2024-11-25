@@ -1446,6 +1446,10 @@ static const cl_image_format supported_image_formats[] = {
 };
 #endif
 
+
+static const char *basic_native_device_aux_funcs[] = {"__pocl_sched_work_item","__pocl_sched_init", "__pocl_barrier_reached", "__pocl_sg_barrier_reached","__pocl_next_jump", "__pocl_sched_clean", NULL};
+
+
 void
 pocl_init_default_device_infos (cl_device_id dev,
                                 const char *device_extensions)
@@ -1456,6 +1460,8 @@ pocl_init_default_device_infos (cl_device_id dev,
   dev->max_work_item_dimensions = 3;
   dev->final_linkage_flags = final_ld_flags;
   dev->extensions = device_extensions;
+
+  dev->device_aux_functions = basic_native_device_aux_funcs;
 
   /*
     The hard restriction will be the context data which is
