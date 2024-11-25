@@ -19,7 +19,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
+#include "SubgroupBarrier.h"
 #include "CompilerWarnings.h"
 IGNORE_COMPILER_WARNING("-Wmaybe-uninitialized")
 #include <llvm/ADT/Twine.h>
@@ -53,6 +53,8 @@ static bool removeBarrierCalls(Function &F) {
     for (BasicBlock::iterator BI = I->begin(), BE = I->end(); BI != BE; ++BI) {
       Instruction *Instr = dyn_cast<Instruction>(BI);
       if (llvm::isa<Barrier>(Instr)) {
+        BarriersToRemove.insert(Instr);
+      }else if(llvm::isa<SubgroupBarrier>(Instr)){
         BarriersToRemove.insert(Instr);
       }
     }
