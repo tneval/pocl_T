@@ -570,9 +570,9 @@ bool areAllGvarsDefined(llvm::Module *Program, std::string &log,
         FoundAllReferences = false;
       } else {
         GVarSet.insert(&GVar);
-         std::cerr << "**************************\n";
-         GVar.dump();
-         std::cerr << "**************************\n";
+         //std::cerr << "**************************\n";
+         //GVar.dump();
+         //std::cerr << "**************************\n";
       }
     }
   }

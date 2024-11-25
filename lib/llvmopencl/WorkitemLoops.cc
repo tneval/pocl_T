@@ -178,7 +178,7 @@ bool WorkitemLoopsImpl::runOnFunction(Function &Func) {
 
   bool Changed = processFunction(Func);
 
-  M->dump();
+  //M->dump();
   
   Changed |= handleLocalMemAllocas();
 
