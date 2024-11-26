@@ -163,8 +163,11 @@ void SimpleFallbackImpl::identifyContextVars()
             /* if(added > 4){
                 continue;
             } */
-
+            
             if (shouldNotBeContextSaved(&Instr)){
+                std::cerr<<"NOT CONTEXT SAVING\n";
+                Instr.print(llvm::errs());
+                llvm::errs()<<"\n";
                 continue;
             }
 
@@ -423,12 +426,13 @@ llvm::Instruction *SimpleFallbackImpl::addContextRestore(
 // DECIDE WHETHER VARIABLE SHOULD BE CONTEXT SAVED
 bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
 
+    return false;
 
     //Instr->print(llvm::outs());
 
     if (llvm::isa<llvm::BranchInst>(Instr)){
 
-        //llvm::errs()<<"\nReason: branch instruction";
+        llvm::errs()<<"\nReason: branch instruction";
         return true;
     } 
 
@@ -439,7 +443,7 @@ bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
         llvm::Function *F = llvm::cast<llvm::CallInst>(Instr)->getCalledFunction();
         if (F && (F == LocalMemAllocaFuncDecl || F == WorkGroupAllocaFuncDecl))
 
-        //llvm::errs()<<"\nReason: local memory allocation call is uniform";
+        llvm::errs()<<"\nReason: local memory allocation call is uniform";
 
         return true;
     }
@@ -452,7 +456,7 @@ bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
                         Load->getPointerOperand() == GlobalIdGlobals[1] ||
                         Load->getPointerOperand() == GlobalIdGlobals[2])){
 
-        //llvm::errs()<<"\nReason: loading generated ids";
+        llvm::errs()<<"\nReason: loading generated ids";
 
         return true;                       
 
@@ -461,7 +465,7 @@ bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
     
     if (!VUA.shouldBePrivatized(Instr->getParent()->getParent(), Instr)) {
 
-
+        llvm::errs() << "\nReason: VUA";
         return true;
     }
 
@@ -944,10 +948,11 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
     dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
 
     //F.dump();
+    F.dump();
 
     bool ret_val = WIL.runOnFunction(F);
     
-    //F.dump();
+    F.dump();
    
     dumpCFG(F, F.getName().str() + "AFTER_FALLBACK.dot", nullptr,nullptr);
 
