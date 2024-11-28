@@ -101,6 +101,8 @@ static int
 llvm_codegen (char *output, unsigned device_i, cl_kernel kernel,
               cl_device_id device, _cl_command_node *command, int specialize)
 {
+
+  fprintf(stderr, "llvm_codegen from devices/common.c\n");
   POCL_MEASURE_START (llvm_codegen);
   int error = 0;
   void *llvm_module = NULL;
@@ -132,6 +134,10 @@ llvm_codegen (char *output, unsigned device_i, cl_kernel kernel,
 
   error = pocl_llvm_generate_workgroup_function_nowrite (
       device_i, device, kernel, command, &llvm_module, specialize);
+
+
+  
+
   if (error)
     {
       POCL_MSG_PRINT_LLVM ("pocl_llvm_generate_workgroup_function() failed"
@@ -1147,6 +1153,10 @@ pocl_check_kernel_dlhandle_cache (_cl_command_node *command,
   char *module_fn = pocl_check_kernel_disk_cache (command, specialize);
 
   ci->dlhandle = pocl_dynlib_open (module_fn, 0, 1);
+
+  if(ci->dlhandle == NULL){
+    fprintf(stderr, "dlhandle is NULL\n");
+  }
 
   snprintf (workgroup_string, WORKGROUP_STRING_LENGTH,
             "_pocl_kernel_%s_workgroup", run_cmd->kernel->name);

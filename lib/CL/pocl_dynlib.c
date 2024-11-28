@@ -31,9 +31,14 @@
 #include <dlfcn.h>
 #endif
 
+
+#define DBG
+
 void *
 pocl_dynlib_open (const char *path, int lazy, int local)
 {
+  fprintf(stderr, "pocl_dynlib_open() from pocl_dynlib.c\n");
+
   int flags = 0;
   if (lazy)
     flags |= RTLD_LAZY;
@@ -66,6 +71,11 @@ pocl_dynlib_close (void *dynlib_handle)
 void *
 pocl_dynlib_symbol_address (void *dynlib_handle, const char *symbol_name)
 {
+
+#ifdef DBG
+  fprintf(stderr,"pocl_dynlib_symbol_address() called with symbol name: %s\n", symbol_name);
+#endif
+
   void *addr = dlsym (dynlib_handle, symbol_name);
   if (addr == NULL)
     {

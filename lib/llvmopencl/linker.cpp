@@ -61,11 +61,16 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include "LLVMUtils.h"
 #include "linker.h"
 
+#include <iostream>
+
 using namespace llvm;
 
 // #include <cstdio>
 //#define DB_PRINT(...) printf("linker:" __VA_ARGS__)
 #define DB_PRINT(...)
+
+
+//#define DBG
 
 namespace pocl {
 
@@ -469,6 +474,10 @@ using namespace pocl;
 int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
          cl_device_id ClDev) {
 
+#ifdef DBG
+  Program->dump();
+#endif
+
   assert(Program);
   assert(Lib);
   ValueToValueMapTy vvm;
@@ -482,11 +491,31 @@ int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
     }
   }
 
+// Print aux functions defined for device
+#ifdef DBG
+  std::cerr << "Bitcode Linker >\n";
+  std::cerr << "device aux functions:\n";
+  for(auto &f : DeclaredFunctions){
+    std::cerr << f.getKey().str() << std::endl;
+  }
+#endif
+  
+
 
   llvm::Module::iterator fi, fe;
 
+#ifdef DBG
+  std::cerr << "functions in module:\n";
+#endif
+
   // Inspect the program, find undefined functions
   for (fi = Program->begin(), fe = Program->end(); fi != fe; fi++) {
+
+    // Print functions in module
+#ifdef DBG
+    std::cerr << fi->getName().str() << std::endl;
+#endif
+
     if (fi->isDeclaration()) {
       DB_PRINT("%s is not defined\n", fi->getName().data());
       DeclaredFunctions.insert(fi->getName());

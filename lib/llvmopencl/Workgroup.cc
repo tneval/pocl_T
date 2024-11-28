@@ -72,6 +72,8 @@ POP_COMPILER_DIAGS
 #define PASS_CLASS pocl::Workgroup
 #define PASS_DESC "Workgroup creation pass"
 
+//#define DBG
+
 namespace pocl {
 
 using namespace llvm;
@@ -858,6 +860,9 @@ void WorkgroupImpl::privatizeGlobals(
  */
 void WorkgroupImpl::privatizeContext(Function *F) {
 
+#ifdef DBG
+  std::cerr << "WorkgroupImp::privatizeContext()\n";
+#endif
   // Privatize _global_id_* to private allocas.
   // They are referred to by WorkItemLoops to fetch the global id directly.
 
@@ -1680,6 +1685,11 @@ llvm::Value *WorkgroupImpl::getRequiredSubgroupSize(llvm::Function &F) {
 
 llvm::PreservedAnalyses Workgroup::run(llvm::Module &M,
                                        llvm::ModuleAnalysisManager &AM) {
+  
+  //std::cerr << "Running Workgroup::run()\n";
+
+  //M.dump();
+
   WorkgroupImpl WGI;
   PreservedAnalyses PAChanged = PreservedAnalyses::none();
   PAChanged.preserve<WorkitemHandlerChooser>();
@@ -1705,24 +1715,41 @@ llvm::PreservedAnalyses Workgroup::run(llvm::Module &M,
       break;
     }
   }
- 
+  
+#ifdef DBG
+  std::cerr << "WorkgroupVariablesVector size is: " << WorkgroupVariablesVector.size() << std::endl;
+#endif
   std::vector<llvm::GlobalVariable *> GVarsToDelete;
   // remove the declarations of global variables
   for (auto &GV : M.globals()) {
     llvm::GlobalVariable *GVar = &GV;
 
+#ifdef DBG
+    std::cerr << GVar->getName().str() << std::endl;
+#endif
     if (!GVar->hasName()) {
+#ifdef DBG
+      std::cerr << "No name\n";
+#endif
       continue;
     }
 
     if (std::find(WorkgroupVariablesVector.begin(), WorkgroupVariablesVector.end(),
                   GVar->getName().str()) == WorkgroupVariablesVector.end()) {
+#ifdef DBG
+      std::cerr << "Not found in workgroup variables\n";
+#endif
       continue;
     }
     if (GVar->getNumUses() > 0) {
+#ifdef DBG
+      std::cerr << "No uses\n";
+#endif
       continue;
     }
-
+#ifdef DBG
+    std::cerr << "Will delete: " << GVar->getName().str() << std::endl;
+#endif
     GVarsToDelete.push_back(GVar);
   }
    
@@ -1730,6 +1757,13 @@ llvm::PreservedAnalyses Workgroup::run(llvm::Module &M,
     GVar->eraseFromParent();
   }
    
+  //std::cerr << "DUMP AFTER\n";
+  //M.dump();
+
+#ifdef DBG
+  std::cerr << "Workgroup::run() DONE\n";
+#endif
+
   return Ret ? PAChanged : PreservedAnalyses::all();
 }
 

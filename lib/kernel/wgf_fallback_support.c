@@ -31,7 +31,7 @@ static unsigned int* sg_barrier_status;
 
 void __pocl_sched_init(long x_size, long y_size, long z_size, int sg_size)
 {
-
+   
 #ifdef DBG
     fprintf(stdout, "SCHEDULER>> init called %ld\t%ld\t%ld\t%ld\n",sg_size,x_size,y_size,z_size);
 #endif
@@ -64,7 +64,7 @@ void __pocl_sched_init(long x_size, long y_size, long z_size, int sg_size)
 
 
 void __pocl_next_jump(long idx){
-    fprintf(stdout, "jumping next to index: %d\n",idx);
+    //fprintf(stdout, "jumping next to index: %d\n",idx);
 }
 
 
@@ -235,7 +235,9 @@ long __pocl_sched_work_item()
 void __pocl_sched_clean()
 {
 
+#ifdef DBG
     fprintf(stdout, "SCHEDULER>> clean called\n");
+#endif
 
     free(sg_wi_counter);
     free(sg_barrier_status);

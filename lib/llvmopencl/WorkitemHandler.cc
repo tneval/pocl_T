@@ -620,7 +620,7 @@ WorkitemHandler::createContextArrayGEP(llvm::AllocaInst *CtxArrayAlloca,
 
 
 
-  std::cout << "createContextArrayGEP\n";
+  //std::cout << "createContextArrayGEP\n";
   std::vector<llvm::Value *> GEPArgs;
   if (WGDynamicLocalSize) {
     GEPArgs.push_back(getLinearWIIndexInRegion(Before));
@@ -655,7 +655,7 @@ WorkitemHandler::createContextArrayGEP(llvm::AllocaInst *CtxArrayAlloca,
     std::cout << "CtxArrayAlloca is NULL\n";
   } */
 
-  CtxArrayAlloca->getAllocatedType()->print(llvm::outs());
+  //CtxArrayAlloca->getAllocatedType()->print(llvm::outs());
   
 
   llvm::GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Builder.CreateGEP(

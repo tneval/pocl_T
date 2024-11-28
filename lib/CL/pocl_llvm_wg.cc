@@ -94,6 +94,8 @@ POP_COMPILER_DIAGS
 #include "linker.h"
 #include "spirv_parser.hh"
 
+//#define DBG
+
 // Enable to get the LLVM pass execution timing report dumped to console after
 // each work-group IR function generation. Requires LLVM > 7.
 // #define DUMP_LLVM_PASS_TIMINGS
@@ -306,9 +308,18 @@ llvm::Error PoCLModulePassManager::build(std::string PoclPipeline,
 
 void PoCLModulePassManager::run(llvm::Module &Bitcode) {
   PM.run(Bitcode, MAM);
+
+  //std::cerr << "aft\n";
+  //Bitcode.dump();
+
 #ifdef SEPARATE_OPTIMIZATION_FROM_POCL_PASSES
   populateModulePM(nullptr, (void *)&Bitcode, OptimizeLevel, SizeLevel,
                    Vectorize, Machine.get());
+  
+  //std::cerr << "populateModulePM\n";
+  //std::cerr << "FINAL BITCODE: PARALLEL.BC\n";
+  //Bitcode.dump();
+
 #endif
 }
 
@@ -379,10 +390,18 @@ llvm::Error TwoStagePoCLModulePassManager::build(
 }
 
 void TwoStagePoCLModulePassManager::run(llvm::Module &Bitcode) {
+
+  std::cerr << "Running pass pipeline stages 1 and 2\n";
+
   Stage1.run(Bitcode);
-  //std::cout << "stage 1 ready" << std::endl; 
+  std::cerr << "stage 1 ready" << std::endl; 
   Stage2.run(Bitcode);
-  //std::cout << "stage 2 ready" <<std::endl;
+  std::cerr << "stage 2 ready" <<std::endl;
+
+
+  //std::cerr << "At run:\n";
+  //Bitcode.dump();
+
 }
 
 
@@ -450,6 +469,9 @@ static void addAnalysis(std::vector<std::string> &Passes, std::string PassName,
 // for old PM, also adds optimizations; for new PM it's handled separately
 static void addStage1PassesToPipeline(cl_device_id Dev,
                                       std::vector<std::string> &Passes) {
+
+  std::cerr << "Adding stage 1 passes to pipeline\n";
+
   /* The kernel compiler passes to run, in order.
 
      Some notes about the kernel compiler phase ordering constraints:
@@ -486,27 +508,31 @@ static void addStage1PassesToPipeline(cl_device_id Dev,
 
   // NOTE: if you add a new PoCL pass here,
   // don't forget to register it in registerPassBuilderPasses
-  addPass(Passes, "fix-min-legal-vec-size", PassType::Module);
-  addPass(Passes, "inline-kernels");
 
-  addPass(Passes, "handle-samplers");
-  addPass(Passes, "infer-address-spaces");
-  addPass(Passes, "mem2reg");
-  addAnalysis(Passes, "domtree");
-  addAnalysis(Passes, "workitem-handler-chooser");
+  //addPass(Passes, "fix-min-legal-vec-size", PassType::Module);
+  //addPass(Passes, "inline-kernels");
+
+  //addPass(Passes, "handle-samplers");
+  //addPass(Passes, "infer-address-spaces");
+  //addPass(Passes, "mem2reg");
+  //addAnalysis(Passes, "domtree");
+  //addAnalysis(Passes, "workitem-handler-chooser");
   if (Dev->spmd != CL_FALSE) {
-    addPass(Passes, "flatten-inline-all", PassType::Module);
-    addPass(Passes, "always-inline", PassType::Module);
+    //addPass(Passes, "flatten-inline-all", PassType::Module);
+    //addPass(Passes, "always-inline", PassType::Module);
   } else {
     addPass(Passes, "flatten-globals", PassType::Module);
-    addPass(Passes, "flatten-barrier-subs", PassType::Module);
-    addPass(Passes, "always-inline", PassType::Module);
+    //addPass(Passes, "flatten-barrier-subs", PassType::Module);
+    //addPass(Passes, "always-inline", PassType::Module);
   }
   // this must be done AFTER inlining, see note above
-  addPass(Passes, "automatic-locals", PassType::Module);
+  //addPass(Passes, "automatic-locals", PassType::Module);
 
   // must come AFTER flatten-globals & always-inline
-  addPass(Passes, "optimize-wi-gvars");
+  //addPass(Passes, "optimize-wi-gvars");
+  
+  
+  
 
   // It should be now safe to run -O3 over the single work-item kernel
   // as the barrier has the attributes preventing illegal motions and
@@ -522,26 +548,27 @@ static void addStage1PassesToPipeline(cl_device_id Dev,
 static void addStage2PassesToPipeline(cl_device_id Dev,
                                       std::vector<std::string> &Passes) {
 
-  // NOTE: if you add a new PoCL pass here,
-  // don't forget to register it in registerPassBuilderPasses
-  if (!Dev->spmd) {
-    addPass(Passes, "simplifycfg");
-    addPass(Passes, "loop-simplify");
+  std::cerr << "Adding stage 2 passes to pipeline\n";
+
+
+ if (!Dev->spmd) {
+    //addPass(Passes, "simplifycfg");
+    //addPass(Passes, "loop-simplify");
 
     // required for OLD PM
-    addAnalysis(Passes, "workitem-handler-chooser");
-    addAnalysis(Passes, "pocl-vua");
+    //addAnalysis(Passes, "workitem-handler-chooser");
+    //addAnalysis(Passes, "pocl-vua");
 
     // Run lcssa explicitly to ensure it has generated its lcssa phis before
     // we break them in phistoallocas. This is an intermediate solution while
     // working towards processing unoptimized Clang output.
-    addPass(Passes, "lcssa");
+    //addPass(Passes, "lcssa");
     addPass(Passes, "phistoallocas");
-    addPass(Passes, "isolate-regions");
+    //addPass(Passes, "isolate-regions");
 
     // NEW PM requires WIH & VUA analyses here,
     // but they should not be invalidated by previous passes
-    addPass(Passes, "implicit-loop-barriers", PassType::Loop);
+    //addPass(Passes, "implicit-loop-barriers", PassType::Loop);
 
     // implicit-cond-barriers handles barriers inside conditional
     // basic blocks (basically if...elses). It tries to minimize the
@@ -549,23 +576,23 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
     // isolating the branching condition (which must be uniform,
     // otherwise the end result is undefined according to barrier rules),
     // to minimize the impact of "work-item peeling" (* to describe).
-    addPass(Passes, "implicit-cond-barriers");
+    //addPass(Passes, "implicit-cond-barriers");
 
     // loop-barriers adds implicit barriers to handle b-loops by isolating the
     // loop body from the loop construct. It also tries to make non b-loops
     // "isolated" in a way to produce the wiloop strictly around it, making
     // things nice for LLVM standard loop analysis (loop-interchange and
     // loopvec at least).
-    addPass(Passes, "loop-barriers", PassType::Loop);
+    //addPass(Passes, "loop-barriers", PassType::Loop);
 
-    addPass(Passes, "barriertails");
+    //addPass(Passes, "barriertails");
     addPass(Passes, "canon-barriers");
-    addPass(Passes, "isolate-regions");
+    //addPass(Passes, "isolate-regions");
 
     // required for OLD PM
-    addAnalysis(Passes, "wi-aa");
-    addAnalysis(Passes, "workitem-handler-chooser");
-    addAnalysis(Passes, "pocl-vua");
+    //addAnalysis(Passes, "wi-aa");
+    //addAnalysis(Passes, "workitem-handler-chooser");
+    //addAnalysis(Passes, "pocl-vua");
 
 #if 0
     // use PoCL's own print-module pass
@@ -580,12 +607,12 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
     // subcfgformation (for CBS) before workitemloops, as wiloops creates the
     // loops for kernels without barriers, but after the transformation the
     // kernel looks like it has barriers, so subcfg would do its thing.
-    addPass(Passes, "subcfgformation");
+    //addPass(Passes, "subcfgformation");
 
     // subcfgformation before workitemloops, as wiloops creates the loops for
     // kernels without barriers, but after the transformation the kernel looks
     // like it has barriers, so subcfg would do its thing.
-    addPass(Passes, "workitemloops");
+    //addPass(Passes, "workitemloops");
 
     addPass(Passes, "simplefallback");
 
@@ -609,21 +636,24 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
   // context data and fix the calls early.
   if (Dev->run_workgroup_pass) {
     addPass(Passes, "workgroup", PassType::Module);
-    addPass(Passes, "always-inline", PassType::Module);
+    //addPass(Passes, "always-inline", PassType::Module);
   }
 
   // Attempt to move all allocas to the entry block to avoid the need for
   // dynamic stack which is problematic for some architectures.
-  addPass(Passes, "allocastoentry");
+  //addPass(Passes, "allocastoentry");
 
   // Convert variables back to PHIs to clean up loop structures to enable the
   // LLVM standard loop analysis.
-  addPass(Passes, "mem2reg");
+  //addPass(Passes, "mem2reg");
 
   // Later passes might get confused (and expose possible bugs in them) due to
   // UNREACHABLE blocks left by repl. So let's clean up the CFG before running
   // the standard LLVM optimizations.
-  addPass(Passes, "simplifycfg");
+  //addPass(Passes, "simplifycfg");
+ 
+
+  
 
   // the optimization for new PM is handled separately
   // addPass(Passes, "STANDARD_OPTS");
@@ -650,6 +680,9 @@ static std::string convertPassesToPipelineString(const std::vector<std::string> 
 
 static bool runKernelCompilerPasses(cl_device_id Device, llvm::Module &Mod) {
 
+
+  std::cerr << "runKernelCompilerPasses()\n";
+
   TwoStagePoCLModulePassManager PM;
   std::vector<std::string> Passes1;
   addStage1PassesToPipeline(Device, Passes1);
@@ -665,6 +698,10 @@ static bool runKernelCompilerPasses(cl_device_id Device, llvm::Module &Mod) {
   }
 
   PM.run(Mod);
+
+  //std::cerr << "After running all passes\n";
+  //Mod.dump();
+
   return true;
 }
 
@@ -1234,6 +1271,10 @@ static int pocl_llvm_run_pocl_passes(llvm::Module *Bitcode,
     WGMaxGridDimWidth = 0;
   }
 
+#ifdef DBG
+  std::cerr << "before\n";
+  Bitcode->dump();
+#endif
 
 
   if (Device->device_aux_functions) {
@@ -1299,6 +1340,12 @@ static int pocl_llvm_run_pocl_passes(llvm::Module *Bitcode,
   setModuleIntMetadata(Bitcode, "device_max_witem_sizes_2",
                        Device->max_work_item_sizes[2]);
 
+
+#ifdef DBG
+  std::cerr << "after\n";
+  Bitcode->dump();
+#endif
+
 #ifdef DUMP_LLVM_PASS_TIMINGS
   llvm::TimePassesIsEnabled = true;
 #endif
@@ -1308,6 +1355,9 @@ static int pocl_llvm_run_pocl_passes(llvm::Module *Bitcode,
 #ifdef DUMP_LLVM_PASS_TIMINGS
   llvm::reportAndResetTimings();
 #endif
+
+  //std::cerr << "from run passes, after\n";
+  //Bitcode->dump();
 
   // Print loop vectorizer remarks if enabled.
   if (pocl_get_bool_option("POCL_VECTORIZER_REMARKS", 0) == 1) {
@@ -1351,6 +1401,8 @@ int pocl_llvm_generate_workgroup_function_nowrite(
   int res =
       pocl_llvm_run_pocl_passes(ParallelBC, RunCommand, LLVMContext,
                                 PoCLLLVMContext, Kernel, Device, Specialize);
+  std::cerr << "After running passes\n";
+  //ParallelBC->dump();
 
   std::string FinalizerCommand =
       pocl_get_string_option("POCL_BITCODE_FINALIZER", "");
@@ -1398,6 +1450,8 @@ int pocl_llvm_generate_workgroup_function_nowrite(
 }
 
 int pocl_llvm_run_passes_on_program(cl_program Program, unsigned DeviceI) {
+
+  std::cerr << "pocl_llvm_run_passes_on_program() called\n";
 
   llvm::Module *ProgramBC = (llvm::Module *)Program->llvm_irs[DeviceI];
   cl_device_id Device = Program->devices[DeviceI];
@@ -1532,6 +1586,9 @@ static void initPassManagerForCodeGen(legacy::PassManager &PM,
  * Output native object file (<kernel>.so.o). */
 int pocl_llvm_codegen(cl_device_id Device, cl_program program, void *Modp,
                       char **Output, uint64_t *OutputSize) {
+  
+  
+  std::cerr << "pocl_llvm_codegen called\n";
 
   cl_context ctx = program->context;
   PoclLLVMContextData *llvm_ctx = (PoclLLVMContextData *)ctx->llvm_context_data;

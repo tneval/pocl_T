@@ -20,6 +20,7 @@
 #define PASS_CLASS pocl::SimpleFallback
 #define PASS_DESC "Simple and robust work group function generator"
 
+//#define DBG
 
 namespace pocl{
 
@@ -423,7 +424,7 @@ llvm::Instruction *SimpleFallbackImpl::addContextRestore(
 // DECIDE WHETHER VARIABLE SHOULD BE CONTEXT SAVED
 bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
 
-
+    return false;
     //Instr->print(llvm::outs());
 
     if (llvm::isa<llvm::BranchInst>(Instr)){
@@ -507,7 +508,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(2), ST))};
 
     TempInstructionIndex = 0;
-
+    handleLocalMemAllocas();
     handleWorkitemFunctions();
 
     //Func.dump();
@@ -645,7 +646,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Modify the barrier blocks
     for(auto &BBlock : barrierBlocks){
 
-        std::cout << "6\n";
+     
 
         // This is the entry barrier block
         // Is this bad way to check entry barrier?
@@ -720,12 +721,14 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         // These are "Explicit" barriers
         }else{
             
-
+            
+#ifdef DBG
             if(Barrier::hasBarrier(BBlock)){
                 std::cout << "BARRIER: " << BBlock->getName().str() << std::endl;
             }else if(SubgroupBarrier::hasSGBarrier(BBlock)){
                 std::cout << "SG BARRIER:" << BBlock->getName().str() << std::endl;
             }
+#endif
 
              // This is the next exit block
             barrierExits.push_back(BBlock->getTerminator()->getSuccessor(0));
@@ -886,13 +889,15 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
  
     llvm::verifyModule(*M, &OS, &BrokenDebugInfo);
     if (!Log.empty()) {
-    std::cerr << "Module verification errors:\n" << Log << std::endl;
-}
+        std::cerr << "Module verification errors:\n" << Log << std::endl;
+    }
   
 
 
     llvm::verifyFunction(Func);
 
+
+    //F->dump();
 
     return true;
 
@@ -915,11 +920,16 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
         return llvm::PreservedAnalyses::all();
     }
     
+
+#ifdef DBG
+
     if(WIH == WorkitemHandlerType::FALLBACK){
         std::cout << "WIH  is of type FALLBACK" << std::endl;
     }
-
     llvm::errs() << F.getName() << "\n";
+#endif
+
+    
 
     //F.dump();
 
@@ -941,15 +951,19 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
     SimpleFallbackImpl WIL(DT, LI, PDT, VUA);
 
 
-    dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
+    //dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
 
-    //F.dump();
+#ifdef DBG 
+    F.dump();
+#endif
 
     bool ret_val = WIL.runOnFunction(F);
-    
-    //F.dump();
-   
-    dumpCFG(F, F.getName().str() + "AFTER_FALLBACK.dot", nullptr,nullptr);
+
+#ifdef DBG 
+    F.dump();
+#endif
+
+    //dumpCFG(F, F.getName().str() + "AFTER_FALLBACK.dot", nullptr,nullptr);
 
     //return ret_val ? PAChanged : llvm::PreservedAnalyses::all();
     

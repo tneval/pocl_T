@@ -26,6 +26,8 @@
 
 #include <llvm/Support/DynamicLibrary.h>
 #include <unordered_map>
+#include <iostream>
+#define DBG
 
 using namespace llvm::sys;
 
@@ -38,6 +40,9 @@ struct DynlibData {
 std::unordered_map<void *, DynlibData> LoadedLibs;
 
 void *pocl_dynlib_open(const char *Path, int, int) {
+
+  std::cerr << "pocl_dynlib_open() from pocl_llvm_dynlib.cc\n";
+
   std::string Err;
   DynamicLibrary DL = DynamicLibrary::getLibrary(Path, &Err);
   if (!DL.isValid()) {
@@ -60,6 +65,11 @@ int pocl_dynlib_close(void *Handle) {
 }
 
 void *pocl_dynlib_symbol_address(void *, const char *SymbolName) {
+
+#ifdef DBG
+  std::cerr << "pocl_dynlib_symbol_address() called from .cc\n"
+#endif
+
   return DynamicLibrary::SearchForAddressOfSymbol(SymbolName);
 }
 
