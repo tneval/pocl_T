@@ -47,6 +47,16 @@ sub_group_barrier (memory_scope scope)
   sub_group_barrier (CLK_GLOBAL_MEM_FENCE);
 } */
 
+struct String{
+    char str[100];
+    int val;
+    float fval;
+};
+void _CL_OVERLOADABLE printFromKernel(struct String s);
+
+void _CL_OVERLOADABLE printFloatFromKernel(struct String s);
+
+
 int _CL_OVERLOADABLE
 sub_group_any (int predicate)
 {

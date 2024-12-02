@@ -30,10 +30,39 @@
 #include <math.h>
 
 #include "work_group_alloca.h"
+#include <stdio.h>
+#include <string.h>
 
 size_t _CL_OVERLOADABLE get_local_id (unsigned int dimindx);
 size_t _CL_OVERLOADABLE get_local_linear_id (void);
 size_t _CL_OVERLOADABLE get_local_size (unsigned int dimindx);
+
+
+struct String{
+    char str[100];
+    int val;
+    float fval;
+};
+
+
+void _CL_OVERLOADABLE 
+printFromKernel(struct String s)
+{
+  fprintf(stderr, "%s\n",s.str);
+}
+
+void _CL_OVERLOADABLE 
+printIntFromKernel(struct String s){
+
+  fprintf(stderr,"%s\tVAL: %d\n",s.str, s.val);
+}
+
+void _CL_OVERLOADABLE
+printFloatFromKernel(struct String s){
+  fprintf(stderr,"val: %d\n",s.fval);
+}
+
+
 
 /* Magic variable that is expanded in Workgroup.cc */
 extern uint _pocl_sub_group_size;
@@ -178,6 +207,10 @@ _Z19sub_group_broadcastDhj (half val, uint mask)
   __attribute__ ((always_inline))                                             \
   TYPE _CL_OVERLOADABLE sub_group_reduce_##OPNAME (TYPE val)                  \
   {                                                                           \
+  struct String string = {"<PoCL/Kernel-lib> sub_group_reduce()"}; \
+    printFromKernel(string); \
+    struct String ss1 = {"pocl",0,val};\
+            printFloatFromKernel(ss1); \
     volatile TYPE *temp_storage                                               \
         = __pocl_work_group_alloca (sizeof (TYPE), sizeof (TYPE), 0);         \
     temp_storage[get_local_linear_id ()] = val;                               \
@@ -189,6 +222,8 @@ _Z19sub_group_broadcastDhj (half val, uint mask)
             TYPE a = temp_storage[get_first_llid ()],                         \
                  b = temp_storage[get_first_llid () + i];                     \
             temp_storage[get_first_llid ()] = OPERATION;                      \
+            struct String ss2 = {"pocl",0,temp_storage[get_first_llid()]};\
+            printFloatFromKernel(ss2); \
           }                                                                   \
       }                                                                       \
     sub_group_barrier (CLK_LOCAL_MEM_FENCE);                                  \

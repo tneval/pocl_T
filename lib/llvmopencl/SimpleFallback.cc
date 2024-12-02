@@ -962,8 +962,8 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 #ifdef DBG 
     F.dump();
 #endif
-
-    //dumpCFG(F, F.getName().str() + "AFTER_FALLBACK.dot", nullptr,nullptr);
+    
+    dumpCFG(F, F.getName().str() + "AFTER_FALLBACK.dot", nullptr,nullptr);
 
     //return ret_val ? PAChanged : llvm::PreservedAnalyses::all();
     
