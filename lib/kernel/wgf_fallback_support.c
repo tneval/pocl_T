@@ -243,3 +243,4 @@ void __pocl_sched_clean()
     free(sg_barrier_status);
 
 }
+

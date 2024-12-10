@@ -509,27 +509,27 @@ static void addStage1PassesToPipeline(cl_device_id Dev,
   // NOTE: if you add a new PoCL pass here,
   // don't forget to register it in registerPassBuilderPasses
 
-  //addPass(Passes, "fix-min-legal-vec-size", PassType::Module);
-  //addPass(Passes, "inline-kernels");
+  addPass(Passes, "fix-min-legal-vec-size", PassType::Module);
+  addPass(Passes, "inline-kernels");
 
-  //addPass(Passes, "handle-samplers");
-  //addPass(Passes, "infer-address-spaces");
-  //addPass(Passes, "mem2reg");
-  //addAnalysis(Passes, "domtree");
-  //addAnalysis(Passes, "workitem-handler-chooser");
+  addPass(Passes, "handle-samplers");
+  addPass(Passes, "infer-address-spaces");
+  addPass(Passes, "mem2reg");
+  addAnalysis(Passes, "domtree");
+  addAnalysis(Passes, "workitem-handler-chooser");
   if (Dev->spmd != CL_FALSE) {
-    //addPass(Passes, "flatten-inline-all", PassType::Module);
-    //addPass(Passes, "always-inline", PassType::Module);
+    addPass(Passes, "flatten-inline-all", PassType::Module);
+    addPass(Passes, "always-inline", PassType::Module);
   } else {
-    addPass(Passes, "flatten-globals", PassType::Module);
-    //addPass(Passes, "flatten-barrier-subs", PassType::Module);
-    //addPass(Passes, "always-inline", PassType::Module);
+    addPass(Passes, "flatten-globals", PassType::Module);  // NEEDED
+    addPass(Passes, "flatten-barrier-subs", PassType::Module);
+    addPass(Passes, "always-inline", PassType::Module);
   }
   // this must be done AFTER inlining, see note above
-  //addPass(Passes, "automatic-locals", PassType::Module);
+  addPass(Passes, "automatic-locals", PassType::Module);
 
   // must come AFTER flatten-globals & always-inline
-  //addPass(Passes, "optimize-wi-gvars");
+  addPass(Passes, "optimize-wi-gvars");
   
   
   

@@ -59,7 +59,7 @@ printIntFromKernel(struct String s){
 
 void _CL_OVERLOADABLE
 printFloatFromKernel(struct String s){
-  fprintf(stderr,"val: %d\n",s.fval);
+  fprintf(stderr,"%s: %d\n",s.str,s.val);
 }
 
 
@@ -207,25 +207,45 @@ _Z19sub_group_broadcastDhj (half val, uint mask)
   __attribute__ ((always_inline))                                             \
   TYPE _CL_OVERLOADABLE sub_group_reduce_##OPNAME (TYPE val)                  \
   {                                                                           \
-  struct String string = {"<PoCL/Kernel-lib> sub_group_reduce()"}; \
-    printFromKernel(string); \
-    struct String ss1 = {"pocl",0,val};\
-            printFloatFromKernel(ss1); \
+  /* struct String string = {"<PoCL/Kernel-lib> sub_group_reduce()"}; */ \
+    /* printFromKernel(string); */ \
+    /* struct String ss1 = {"pocl",val,val}; */\
+            /* printFloatFromKernel(ss1); */ \
+  /* struct String lid = {"localLinearId",get_local_linear_id(),get_local_linear_id()}; */ \
+ /*  printFloatFromKernel(lid);  */    \
+  /* struct String firstId = {"firstllid", get_first_llid(),get_first_llid()}; */ \
+  /* printFloatFromKernel(firstId); */   \
     volatile TYPE *temp_storage                                               \
         = __pocl_work_group_alloca (sizeof (TYPE), sizeof (TYPE), 0);         \
     temp_storage[get_local_linear_id ()] = val;                               \
+    /* struct String first_val = {"wi value:",temp_storage[get_local_linear_id()],temp_storage[get_local_linear_id()]}; */   \
+    /* printFloatFromKernel(first_val); */ \
     sub_group_barrier (CLK_LOCAL_MEM_FENCE);                                  \
+    /* struct String first_val2 = {"wi value2:",temp_storage[get_local_linear_id()],temp_storage[get_local_linear_id()]}; */   \
+    /* printFloatFromKernel(first_val2); */ \
+    /* int c = temp_storage[get_local_linear_id() + 1]; */ \
+    /* struct String cs = {"c_var", c, c}; */ \
+    /* printFloatFromKernel(cs); */ \
     if (get_sub_group_local_id () == 0)                                       \
-      {                                                                       \
+      {     \
+        /* struct String printti = {"subgrouplocalid == 0"}; */ \
+         /* printFromKernel(printti); */                                                                  \
         for (uint i = 1; i < get_sub_group_size (); ++i)                      \
           {                                                                   \
             TYPE a = temp_storage[get_first_llid ()],                         \
                  b = temp_storage[get_first_llid () + i];                     \
-            temp_storage[get_first_llid ()] = OPERATION;                      \
-            struct String ss2 = {"pocl",0,temp_storage[get_first_llid()]};\
-            printFloatFromKernel(ss2); \
+            /* temp_storage[get_first_llid ()] = OPERATION; */                      \
+            temp_storage[get_first_llid ()] = a+b; \
+            /* struct String as = {"a_var", a, a}; */ \
+            /* struct String bs = {"b_var", b, b}; */ \
+            /* printFloatFromKernel(as); */  \
+            /* printFloatFromKernel(bs); */ \
+            /* struct String ss2 = {"pocl",0,temp_storage[get_first_llid()]}; */    \
+            /* printFloatFromKernel(ss2); */                                        \
           }                                                                   \
       }                                                                       \
+      /* struct String first_val3 = {"wi value3:",temp_storage[get_local_linear_id()],temp_storage[get_local_linear_id()]};  */  \
+    /* printFloatFromKernel(first_val3);  */                                                                  \
     sub_group_barrier (CLK_LOCAL_MEM_FENCE);                                  \
     return temp_storage[get_first_llid ()];                                   \
   }

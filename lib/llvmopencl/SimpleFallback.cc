@@ -166,7 +166,14 @@ void SimpleFallbackImpl::identifyContextVars()
             } */
 
             if (shouldNotBeContextSaved(&Instr)){
+                /* std::cout << "Skipping: " << std::endl;
+                Instr.print(llvm::outs());
+                std::cout << std::endl; */
                 continue;
+            }else{
+                /* std::cout <<"Not skipping: " << std::endl;
+                Instr.print(llvm::outs());
+                std::cout << std::endl; */
             }
 
             //std::cout << "Current instr: \n";
@@ -178,6 +185,8 @@ void SimpleFallbackImpl::identifyContextVars()
 
                 if (User == NULL)
                     continue;
+
+              
 
                 //std::cout << "  User: \n";
                 //User->print(llvm::outs());
@@ -424,7 +433,7 @@ llvm::Instruction *SimpleFallbackImpl::addContextRestore(
 // DECIDE WHETHER VARIABLE SHOULD BE CONTEXT SAVED
 bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
 
-    return false;
+    
     //Instr->print(llvm::outs());
 
     if (llvm::isa<llvm::BranchInst>(Instr)){
@@ -432,6 +441,8 @@ bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
         //llvm::errs()<<"\nReason: branch instruction";
         return true;
     } 
+
+    return false;
 
     // The local memory allocation call is uniform, the same pointer to the
     // work-group shared memory area is returned to all work-items. It must
@@ -444,6 +455,8 @@ bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
 
         return true;
     }
+
+    //return false;
 
     llvm::LoadInst *Load = llvm::dyn_cast<llvm::LoadInst>(Instr);
     if (Load != NULL && (Load->getPointerOperand() == LocalIdGlobals[0] ||
@@ -458,7 +471,7 @@ bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
         return true;                       
 
     }
-
+    
     
     if (!VUA.shouldBePrivatized(Instr->getParent()->getParent(), Instr)) {
 
@@ -508,7 +521,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal(GID_G_NAME(2), ST))};
 
     TempInstructionIndex = 0;
-    handleLocalMemAllocas();
+    
     handleWorkitemFunctions();
 
     //Func.dump();
@@ -637,16 +650,22 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         if(Barrier::hasBarrier(&Block) || SubgroupBarrier::hasSGBarrier(&Block)){
             barrierBlocks.push_back(&Block);
         }
+        
     }
 
+    
 
+
+    //std::cerr << "Num of barriers : " << barrierBlocks.size() << std::endl;
     // Store pointer to old exit here
     llvm::BasicBlock* oldExitBlock = nullptr;
 
     // Modify the barrier blocks
     for(auto &BBlock : barrierBlocks){
 
-     
+        if(Barrier::hasBarrier(BBlock)){
+                std::cout << "BARRIER: " << BBlock->getName().str() << std::endl;
+            }
 
         // This is the entry barrier block
         // Is this bad way to check entry barrier?
@@ -807,10 +826,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     bBuilder.CreateStore(loc_z, localIdZPtr);
 
 
-
-    llvm::Value *local_z = bBuilder.CreateLoad(uType,localIdZPtr,"local_z");
+    // Are these really necessary, use loc_x etc above?
+    /* llvm::Value *local_z = bBuilder.CreateLoad(uType,localIdZPtr,"local_z");
     llvm::Value *local_y = bBuilder.CreateLoad(uType,localIdYPtr,"local_y");
-    llvm::Value *local_x = bBuilder.CreateLoad(uType,localIdXPtr,"local_x");
+    llvm::Value *local_x = bBuilder.CreateLoad(uType,localIdXPtr,"local_x"); */
 
 
     
@@ -827,30 +846,33 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
 
     llvm::Value* multX = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeX, false), x_gid, "mulx");
-    llvm::Value* gid_x = bBuilder.CreateAdd(multX, local_x, "gid_x");
+    llvm::Value* gid_x = bBuilder.CreateAdd(multX, loc_x, "gid_x");
 
 
     llvm::Value* multY = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeY, false), y_gid, "muly");
-    llvm::Value* gid_y = bBuilder.CreateAdd(multY, local_y, "gid_y");
+    llvm::Value* gid_y = bBuilder.CreateAdd(multY, loc_y, "gid_y");
 
-    //bBuilder.CreateStore(gid_x, GlobalIdIterators[0]);
+    llvm::Value* multZ = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeZ, false), z_gid, "mulz");
+    llvm::Value* gid_z = bBuilder.CreateAdd(multZ, loc_z, "gid_z");
+
+
+    // These will store global ids
     bBuilder.CreateStore(gid_x, GlobalIdIterators[0]);
-
 
     bBuilder.CreateStore(gid_y, GlobalIdIterators[1]);
 
-
+    bBuilder.CreateStore(gid_z, GlobalIdIterators[2]);
 
     //global_id(dim)=global_offset(dim)+local_work_size(dim)×group_id(dim)+local_id(dim)
 
 
     //bBuilder.CreateStore(x_offset,GlobalIdIterators[0]);
     //bBuilder.CreateStore(y_offset, GlobalIdIterators[1]);
-    bBuilder.CreateStore(z_offset, GlobalIdIterators[2]);
+    //bBuilder.CreateStore(z_offset, GlobalIdIterators[2]);
 
     // Pointer to exit index array
     //llvm::Value *next_block_ptr = bBuilder.CreateGEP(exitBlockIdxs, nextExitBlockArray, {zeroIndex, nextWI}, "exit_block_ptr");
-    llvm::Value *next_block_ptr = bBuilder.CreateGEP(ContextArrayType,nextExitBlockArray, {zeroIndex, local_z, local_y, local_x}, "exit_block_ptr");
+    llvm::Value *next_block_ptr = bBuilder.CreateGEP(ContextArrayType,nextExitBlockArray, {zeroIndex, loc_z, loc_y, loc_x}, "exit_block_ptr");
 
     // Retrieve exit index based for current local_id_x
     llvm::Value *loadedValue = bBuilder.CreateLoad(bBuilder.getInt64Ty(), next_block_ptr, "next_exit_block");
@@ -897,7 +919,12 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::verifyFunction(Func);
 
 
-    //F->dump();
+    
+
+    handleLocalMemAllocas();
+
+    // added 5.12; trying to fix domination issue 
+    fixUndominatedVariableUses(DT, Func);
 
     return true;
 
@@ -910,7 +937,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
         return llvm::PreservedAnalyses::all();
     }
 
-
+    F.dump();
 
     
     WorkitemHandlerType WIH = AM.getResult<WorkitemHandlerChooser>(F).WIH;
@@ -962,7 +989,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
 #ifdef DBG 
     F.dump();
 #endif
-    
+    F.dump();
     dumpCFG(F, F.getName().str() + "AFTER_FALLBACK.dot", nullptr,nullptr);
 
     //return ret_val ? PAChanged : llvm::PreservedAnalyses::all();
