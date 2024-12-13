@@ -1546,6 +1546,7 @@ pocl_init_default_device_infos (cl_device_id dev,
   dev->max_work_item_dimensions = 3;
   dev->final_linkage_flags = final_ld_flags;
   dev->extensions = device_extensions;
+  dev->device_aux_functions = basic_native_device_aux_funcs;
 
   /*
     The hard restriction will be the context data which is
