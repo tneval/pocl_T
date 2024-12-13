@@ -77,6 +77,8 @@ WorkitemHandlerType ChooseWorkitemHandler(Function &F,
       Result = WorkitemHandlerType::LOOPS;
     else if (method == "cbs")
       Result = WorkitemHandlerType::CBS;
+    else if (method == "fallback")
+      Result = WorkitemHandlerType::FALLBACK;
     else if (method != "auto") {
       std::cerr << "Unknown work group generation method. Using 'auto'."
                 << std::endl;

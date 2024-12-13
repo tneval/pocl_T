@@ -84,7 +84,10 @@ set(LLVMPASSES_SOURCES "AllocasToEntry.cc"
                        "WorkitemHandlerChooser.cc"
                        "WorkitemHandlerChooser.h"
                        "WorkitemLoops.cc"
-                       "WorkitemLoops.h")
+                       "WorkitemLoops.h"
+                       "SimpleFallback.cc"
+                       "SimpleFallback.h"
+                       "SubgroupBarrier.h")
 
 if (ENABLE_REMOTE_SERVER)
   list(APPEND LLVMPASSES_SOURCES "SVMOffset.cc")
