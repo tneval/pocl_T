@@ -524,23 +524,23 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
   // NOTE: if you add a new PoCL pass here,
   // don't forget to register it in registerPassBuilderPasses
   if (!Dev->spmd) {
-    addPass(Passes, "simplifycfg");
-    addPass(Passes, "loop-simplify");
+    //addPass(Passes, "simplifycfg");
+    //addPass(Passes, "loop-simplify");
 
     // required for OLD PM
-    addAnalysis(Passes, "workitem-handler-chooser");
-    addAnalysis(Passes, "pocl-vua");
+    //addAnalysis(Passes, "workitem-handler-chooser");
+    //addAnalysis(Passes, "pocl-vua");
 
     // Run lcssa explicitly to ensure it has generated its lcssa phis before
     // we break them in phistoallocas. This is an intermediate solution while
     // working towards processing unoptimized Clang output.
-    addPass(Passes, "lcssa");
+    //addPass(Passes, "lcssa");
     addPass(Passes, "phistoallocas");
-    addPass(Passes, "isolate-regions");
+    //addPass(Passes, "isolate-regions");
 
     // NEW PM requires WIH & VUA analyses here,
     // but they should not be invalidated by previous passes
-    addPass(Passes, "implicit-loop-barriers", PassType::Loop);
+    //addPass(Passes, "implicit-loop-barriers", PassType::Loop);
 
     // implicit-cond-barriers handles barriers inside conditional
     // basic blocks (basically if...elses). It tries to minimize the
@@ -548,23 +548,23 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
     // isolating the branching condition (which must be uniform,
     // otherwise the end result is undefined according to barrier rules),
     // to minimize the impact of "work-item peeling" (* to describe).
-    addPass(Passes, "implicit-cond-barriers");
+    //addPass(Passes, "implicit-cond-barriers");
 
     // loop-barriers adds implicit barriers to handle b-loops by isolating the
     // loop body from the loop construct. It also tries to make non b-loops
     // "isolated" in a way to produce the wiloop strictly around it, making
     // things nice for LLVM standard loop analysis (loop-interchange and
     // loopvec at least).
-    addPass(Passes, "loop-barriers", PassType::Loop);
+    //addPass(Passes, "loop-barriers", PassType::Loop);
 
-    addPass(Passes, "barriertails");
+    //addPass(Passes, "barriertails");
     addPass(Passes, "canon-barriers");
-    addPass(Passes, "isolate-regions");
+    //addPass(Passes, "isolate-regions");
 
     // required for OLD PM
-    addAnalysis(Passes, "wi-aa");
-    addAnalysis(Passes, "workitem-handler-chooser");
-    addAnalysis(Passes, "pocl-vua");
+    //addAnalysis(Passes, "wi-aa");
+    //addAnalysis(Passes, "workitem-handler-chooser");
+    //addAnalysis(Passes, "pocl-vua");
 
 #if 0
     // use PoCL's own print-module pass
@@ -576,16 +576,16 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
     // subcfgformation (for CBS) before workitemloops, as wiloops creates the
     // loops for kernels without barriers, but after the transformation the
     // kernel looks like it has barriers, so subcfg would do its thing.
-    addPass(Passes, "subcfgformation");
+    //addPass(Passes, "subcfgformation");
 
     // subcfgformation before workitemloops, as wiloops creates the loops for
     // kernels without barriers, but after the transformation the kernel looks
     // like it has barriers, so subcfg would do its thing.
-    addPass(Passes, "workitemloops");
+    //addPass(Passes, "workitemloops");
     // Remove the (pseudo) barriers.   They have no use anymore due to the
     // work-item loop control taking care of them.
 
-    //addPass(Passes, "simplefallback");
+    addPass(Passes, "simplefallback");
 
     addPass(Passes, "remove-barriers");
   }
@@ -605,21 +605,21 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
   // context data and fix the calls early.
   if (Dev->run_workgroup_pass) {
     addPass(Passes, "workgroup", PassType::Module);
-    addPass(Passes, "always-inline", PassType::Module);
+    //addPass(Passes, "always-inline", PassType::Module);
   }
 
   // Attempt to move all allocas to the entry block to avoid the need for
   // dynamic stack which is problematic for some architectures.
-  addPass(Passes, "allocastoentry");
+  //addPass(Passes, "allocastoentry");
 
   // Convert variables back to PHIs to clean up loop structures to enable the
   // LLVM standard loop analysis.
-  addPass(Passes, "mem2reg");
+  //addPass(Passes, "mem2reg");
 
   // Later passes might get confused (and expose possible bugs in them) due to
   // UNREACHABLE blocks left by repl. So let's clean up the CFG before running
   // the standard LLVM optimizations.
-  addPass(Passes, "simplifycfg");
+  //addPass(Passes, "simplifycfg");
 
   // the optimization for new PM is handled separately
   // addPass(Passes, "STANDARD_OPTS");
