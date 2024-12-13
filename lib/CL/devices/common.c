@@ -1522,6 +1522,11 @@ static const cl_image_format supported_image_formats[] = {
 };
 #endif
 
+
+
+static const char *basic_native_device_aux_funcs[] = {"__pocl_sched_work_item","__pocl_sched_init", "__pocl_barrier_reached", "__pocl_sg_barrier_reached","__pocl_next_jump", "__pocl_sched_clean", NULL};
+
+
 /** Initializes device info defaults.
  *
  * It setups the most generic defaults applicable to most devices,
