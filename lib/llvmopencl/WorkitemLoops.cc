@@ -1084,6 +1084,8 @@ llvm::PreservedAnalyses WorkitemLoops::run(llvm::Function &F,
   if (!isKernelToProcess(F))
     return llvm::PreservedAnalyses::all();
 
+  F.dump();
+
   WorkitemHandlerType WIH = AM.getResult<WorkitemHandlerChooser>(F).WIH;
   if (WIH != WorkitemHandlerType::LOOPS)
     return llvm::PreservedAnalyses::all();

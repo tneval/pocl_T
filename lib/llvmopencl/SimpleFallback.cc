@@ -937,7 +937,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
         return llvm::PreservedAnalyses::all();
     }
 
-    //F.dump();
+    F.dump();
 
     
     WorkitemHandlerType WIH = AM.getResult<WorkitemHandlerChooser>(F).WIH;
