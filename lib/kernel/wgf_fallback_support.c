@@ -19,8 +19,8 @@ static int waiting_count;
 static int sg_barriers_active;
 
 
-static unsigned int* sg_wi_counter;
-static unsigned int* sg_barrier_status;
+static unsigned int sg_wi_counter[20];
+static unsigned int sg_barrier_status[20];
 
 
 
@@ -50,8 +50,8 @@ void __pocl_sched_init(long x_size, long y_size, long z_size, int sg_size)
 
     sg_barriers_active = 0;
 
-    sg_wi_counter = malloc(n_subgroups * sizeof(int));
-    sg_barrier_status = malloc(n_subgroups * sizeof(int));
+    //sg_wi_counter = malloc(n_subgroups * sizeof(int));
+    //sg_barrier_status = malloc(n_subgroups * sizeof(int));
 
     for(int i = 0; i< n_subgroups; i++){
         sg_wi_counter[i] = 0;
@@ -239,8 +239,8 @@ void __pocl_sched_clean()
     fprintf(stdout, "SCHEDULER>> clean called\n");
 #endif
 
-    free(sg_wi_counter);
-    free(sg_barrier_status);
+    //free(sg_wi_counter);
+    //free(sg_barrier_status);
 
 }
 

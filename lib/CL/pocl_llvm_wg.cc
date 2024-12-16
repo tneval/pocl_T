@@ -524,70 +524,82 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
   // NOTE: if you add a new PoCL pass here,
   // don't forget to register it in registerPassBuilderPasses
   if (!Dev->spmd) {
-    //addPass(Passes, "simplifycfg");
-    //addPass(Passes, "loop-simplify");
 
-    // required for OLD PM
-    //addAnalysis(Passes, "workitem-handler-chooser");
-    //addAnalysis(Passes, "pocl-vua");
 
-    // Run lcssa explicitly to ensure it has generated its lcssa phis before
-    // we break them in phistoallocas. This is an intermediate solution while
-    // working towards processing unoptimized Clang output.
-    //addPass(Passes, "lcssa");
-    addPass(Passes, "phistoallocas");
-    //addPass(Passes, "isolate-regions");
+    if(CurrentWgMethod == "fallback"){
+      addPass(Passes, "lcssa");
+      addPass(Passes, "phistoallocas");
+      addPass(Passes, "canon-barriers");
+      addPass(Passes, "simplefallback");
+      addPass(Passes, "remove-barriers");
+    }else{
 
-    // NEW PM requires WIH & VUA analyses here,
-    // but they should not be invalidated by previous passes
-    //addPass(Passes, "implicit-loop-barriers", PassType::Loop);
+    
+      addPass(Passes, "simplifycfg");
+      addPass(Passes, "loop-simplify");
 
-    // implicit-cond-barriers handles barriers inside conditional
-    // basic blocks (basically if...elses). It tries to minimize the
-    // part ending up in the parallel region that is conditional by
-    // isolating the branching condition (which must be uniform,
-    // otherwise the end result is undefined according to barrier rules),
-    // to minimize the impact of "work-item peeling" (* to describe).
-    //addPass(Passes, "implicit-cond-barriers");
+      // required for OLD PM
+      addAnalysis(Passes, "workitem-handler-chooser");
+      addAnalysis(Passes, "pocl-vua");
 
-    // loop-barriers adds implicit barriers to handle b-loops by isolating the
-    // loop body from the loop construct. It also tries to make non b-loops
-    // "isolated" in a way to produce the wiloop strictly around it, making
-    // things nice for LLVM standard loop analysis (loop-interchange and
-    // loopvec at least).
-    //addPass(Passes, "loop-barriers", PassType::Loop);
+      // Run lcssa explicitly to ensure it has generated its lcssa phis before
+      // we break them in phistoallocas. This is an intermediate solution while
+      // working towards processing unoptimized Clang output.
+      addPass(Passes, "lcssa");
+      addPass(Passes, "phistoallocas");
+      addPass(Passes, "isolate-regions");
 
-    //addPass(Passes, "barriertails");
-    addPass(Passes, "canon-barriers");
-    //addPass(Passes, "isolate-regions");
+      // NEW PM requires WIH & VUA analyses here,
+      // but they should not be invalidated by previous passes
+      addPass(Passes, "implicit-loop-barriers", PassType::Loop);
 
-    // required for OLD PM
-    //addAnalysis(Passes, "wi-aa");
-    //addAnalysis(Passes, "workitem-handler-chooser");
-    //addAnalysis(Passes, "pocl-vua");
+      // implicit-cond-barriers handles barriers inside conditional
+      // basic blocks (basically if...elses). It tries to minimize the
+      // part ending up in the parallel region that is conditional by
+      // isolating the branching condition (which must be uniform,
+      // otherwise the end result is undefined according to barrier rules),
+      // to minimize the impact of "work-item peeling" (* to describe).
+      addPass(Passes, "implicit-cond-barriers");
+
+      // loop-barriers adds implicit barriers to handle b-loops by isolating the
+      // loop body from the loop construct. It also tries to make non b-loops
+      // "isolated" in a way to produce the wiloop strictly around it, making
+      // things nice for LLVM standard loop analysis (loop-interchange and
+      // loopvec at least).
+      addPass(Passes, "loop-barriers", PassType::Loop);
+
+      addPass(Passes, "barriertails");
+      addPass(Passes, "canon-barriers");
+      addPass(Passes, "isolate-regions");
+
+      // required for OLD PM
+      addAnalysis(Passes, "wi-aa");
+      addAnalysis(Passes, "workitem-handler-chooser");
+      addAnalysis(Passes, "pocl-vua");
 
 #if 0
-    // use PoCL's own print-module pass
-    // note: the "before" is an option given to the PoclCFGPrinter instance;
-    // it will be used as a prefix to the dot files ("PREFIX_kernel.dot")
-    addPass(Passes, "print<pocl-cfg;before>", PassType::Module);
+      // use PoCL's own print-module pass
+      // note: the "before" is an option given to the PoclCFGPrinter instance;
+      // it will be used as a prefix to the dot files ("PREFIX_kernel.dot")
+      addPass(Passes, "print<pocl-cfg;before>", PassType::Module);
 #endif
 
-    // subcfgformation (for CBS) before workitemloops, as wiloops creates the
-    // loops for kernels without barriers, but after the transformation the
-    // kernel looks like it has barriers, so subcfg would do its thing.
-    //addPass(Passes, "subcfgformation");
+      // subcfgformation (for CBS) before workitemloops, as wiloops creates the
+      // loops for kernels without barriers, but after the transformation the
+      // kernel looks like it has barriers, so subcfg would do its thing.
+      addPass(Passes, "subcfgformation");
 
-    // subcfgformation before workitemloops, as wiloops creates the loops for
-    // kernels without barriers, but after the transformation the kernel looks
-    // like it has barriers, so subcfg would do its thing.
-    //addPass(Passes, "workitemloops");
-    // Remove the (pseudo) barriers.   They have no use anymore due to the
-    // work-item loop control taking care of them.
+      // subcfgformation before workitemloops, as wiloops creates the loops for
+      // kernels without barriers, but after the transformation the kernel looks
+      // like it has barriers, so subcfg would do its thing.
+      addPass(Passes, "workitemloops");
+      // Remove the (pseudo) barriers.   They have no use anymore due to the
+      // work-item loop control taking care of them.
 
-    addPass(Passes, "simplefallback");
+      
 
-    addPass(Passes, "remove-barriers");
+      addPass(Passes, "remove-barriers");
+    }
   }
 
   // verify & print the module
@@ -608,27 +620,31 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
     //addPass(Passes, "always-inline", PassType::Module);
   }
 
-  // Attempt to move all allocas to the entry block to avoid the need for
-  // dynamic stack which is problematic for some architectures.
-  //addPass(Passes, "allocastoentry");
+  if(CurrentWgMethod != "fallback"){
+    // Attempt to move all allocas to the entry block to avoid the need for
+    // dynamic stack which is problematic for some architectures.
+    addPass(Passes, "allocastoentry");
 
-  // Convert variables back to PHIs to clean up loop structures to enable the
-  // LLVM standard loop analysis.
-  //addPass(Passes, "mem2reg");
+    // Convert variables back to PHIs to clean up loop structures to enable the
+    // LLVM standard loop analysis.
+    addPass(Passes, "mem2reg");
 
-  // Later passes might get confused (and expose possible bugs in them) due to
-  // UNREACHABLE blocks left by repl. So let's clean up the CFG before running
-  // the standard LLVM optimizations.
-  //addPass(Passes, "simplifycfg");
+    // Later passes might get confused (and expose possible bugs in them) due to
+    // UNREACHABLE blocks left by repl. So let's clean up the CFG before running
+    // the standard LLVM optimizations.
+    addPass(Passes, "simplifycfg");
 
-  // the optimization for new PM is handled separately
-  // addPass(Passes, "STANDARD_OPTS");
+    // the optimization for new PM is handled separately
+    // addPass(Passes, "STANDARD_OPTS");
 
-  // Due to unfortunate phase-ordering problems with store sinking,
-  // loop deletion does not always apply when executing -O3 only
-  // once. Cherry pick the optimization to rerun here.
-  // addPass(Passes, "loop-deletion");
-  // addPass(Passes, "remove-barriers");
+    // Due to unfortunate phase-ordering problems with store sinking,
+    // loop deletion does not always apply when executing -O3 only
+    // once. Cherry pick the optimization to rerun here.
+    // addPass(Passes, "loop-deletion");
+    // addPass(Passes, "remove-barriers");
+  }
+
+  
 }
 
 // old PM uses a vector of strings directly; new PM requires a single string
