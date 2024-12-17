@@ -68,7 +68,7 @@ add_test_pocl(NAME "workgroup/cond_barrier_in_var_for"
 # Cases which are not dependent on the work-group or work-item
 # execution (printout) order or the method (use the default method
 # for the device).
-set(VARIANTS "loopvec;cbs")
+set(VARIANTS "loopvec;cbs;fallback")
 foreach(VARIANT ${VARIANTS})
   set_tests_properties(
     "workgroup/unbarriered_for_loops_${VARIANT}"
@@ -101,23 +101,51 @@ add_test_pocl(NAME "workgroup/conditional_barrier_loopvec"
               EXPECTED_OUTPUT "cond_barriers_1_2_1_1_loopvec.stdout"
               COMMAND "run_kernel" "conditional_barriers.cl" 1 2 1 1
               WORKITEM_HANDLER "loopvec")
+
 add_test_pocl(NAME "workgroup/conditional_barrier_cbs"
               EXPECTED_OUTPUT "cond_barriers_1_2_1_1_cbs.stdout"
               COMMAND "run_kernel" "conditional_barriers.cl" 1 2 1 1
               WORKITEM_HANDLER "cbs")
+
+add_test_pocl(NAME "workgroup/conditional_barrier_fallback"
+              EXPECTED_OUTPUT "cond_barriers_1_2_1_1_fallback.stdout"
+              COMMAND "run_kernel" "conditional_barriers.cl" 1 2 1 1
+              WORKITEM_HANDLER "fallback")
 
 add_test_pocl(NAME "workgroup/forcing_horizontal_parallelization_to_some_outer_loopvec"
               EXPECTED_OUTPUT "outerlooppar_2_2_1_1.stdout"
               COMMAND "run_kernel" "outerlooppar.cl" 2 2 1 1
               WORKITEM_HANDLER "loopvec")
 
-add_test_pocl(NAME "workgroup/loop_with_two_paths_to_the_latch"
+add_test_pocl(NAME "workgroup/loop_with_two_paths_to_the_latch_loopvec"
               EXPECTED_OUTPUT "for_bug_1_2_1_1.stdout"
-              COMMAND "run_kernel" "for_bug.cl" 1 2 1 1)
+              COMMAND "run_kernel" "for_bug.cl" 1 2 1 1
+              WORKITEM_HANDLER "loopvec")
 
-add_test_pocl(NAME "workgroup/b_loop_with_two_latches"
+add_test_pocl(NAME "workgroup/loop_with_two_paths_to_the_latch_cbs"
+              EXPECTED_OUTPUT "for_bug_1_2_1_1.stdout"
+              COMMAND "run_kernel" "for_bug.cl" 1 2 1 1
+              WORKITEM_HANDLER "cbs")
+
+add_test_pocl(NAME "workgroup/loop_with_two_paths_to_the_latch_fallback"
+              EXPECTED_OUTPUT "for_bug_1_2_1_1_fallback.stdout"
+              COMMAND "run_kernel" "for_bug.cl" 1 2 1 1
+              WORKITEM_HANDLER "fallback")
+
+add_test_pocl(NAME "workgroup/b_loop_with_two_latches_loopvec"
               EXPECTED_OUTPUT "multilatch_bloop_1_3_1_1.stdout"
-              COMMAND "run_kernel" "multilatch_bloop.cl" 1 3 1 1)
+              COMMAND "run_kernel" "multilatch_bloop.cl" 1 3 1 1
+              WORKITEM_HANDLER "loopvec")
+
+add_test_pocl(NAME "workgroup/b_loop_with_two_latches_cbs"
+              EXPECTED_OUTPUT "multilatch_bloop_1_3_1_1.stdout"
+              COMMAND "run_kernel" "multilatch_bloop.cl" 1 3 1 1
+              WORKITEM_HANDLER "cbs")
+
+add_test_pocl(NAME "workgroup/b_loop_with_two_latches_fallback"
+              EXPECTED_OUTPUT "multilatch_bloop_1_3_1_1_fallback.stdout"
+              COMMAND "run_kernel" "multilatch_bloop.cl" 1 3 1 1
+              WORKITEM_HANDLER "fallback")
 
 add_test_pocl(NAME "workgroup/workgroup_sizes_work_items_get_wrong_ids"
               SORT_OUTPUT
@@ -139,7 +167,7 @@ add_test_pocl(NAME "workgroup/range_md_large_grid"
 # These tests are now always ran with the basic device with a predefined
 # work-group execution order. Their printout verification depends
 # on it.
-set(VARIANTS "loopvec;cbs")
+set(VARIANTS "loopvec;cbs;fallback;")
 foreach(VARIANT ${VARIANTS})
   set(TEST_LIST     "workgroup/unconditional_barriers_${VARIANT}"
   "workgroup/conditional_barrier_${VARIANT}"

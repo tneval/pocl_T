@@ -54,7 +54,7 @@ add_test_pocl(NAME "kernel/test_bitselect"
               COMMAND "kernel" "test_bitselect")
 
 add_test_pocl(NAME "kernel/test_hadd"
-              WORKITEM_HANDLER "loops;loopvec;cbs"
+              WORKITEM_HANDLER "loops;loopvec;cbs;fallback"
               COMMAND "kernel" "test_hadd")
 
 
@@ -63,7 +63,7 @@ add_test_pocl(NAME "kernel/test_hadd"
 # and Level Zero can timeout executing kernels.
 # enable the tests but add "long" label so ctest can skip easily
 
-set(VARIANTS "loopvec;cbs")
+set(VARIANTS "loopvec;cbs;fallback;")
 foreach(VARIANT ${VARIANTS})
   set_tests_properties( "kernel/test_as_type_${VARIANT}" "kernel/test_bitselect_${VARIANT}"
     "kernel/test_convert_type_1_${VARIANT}" "kernel/test_convert_type_2_${VARIANT}" "kernel/test_convert_type_4_${VARIANT}"
