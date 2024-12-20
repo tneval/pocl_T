@@ -394,6 +394,10 @@ llvm::AllocaInst *WorkitemHandler::createAlignedAndPaddedContextAlloca(
     llvm::Instruction *Inst, llvm::Instruction *Before, const std::string &Name,
     bool &PaddingAdded) {
 
+
+      Inst->print(llvm::outs());
+
+
   PaddingAdded = false;
   BasicBlock &BB = Inst->getParent()->getParent()->getEntryBlock();
   IRBuilder<> Builder(Before);
@@ -407,7 +411,7 @@ llvm::AllocaInst *WorkitemHandler::createAlignedAndPaddedContextAlloca(
     DB = std::unique_ptr<DIBuilder>{new DIBuilder(*M, true, CU)};
   }
 
-  // find the original debug metadata corresponding to the variable
+  // find the original debug metadata corresponding to the varable
   Value *DebugVal = nullptr;
   IntrinsicInst *DebugCall = nullptr;
   if (CU != nullptr) {
@@ -508,6 +512,7 @@ llvm::AllocaInst *WorkitemHandler::createAlignedAndPaddedContextAlloca(
   } else {
     ElementType = Inst->getType();
     AllocType = ElementType;
+    AllocType->print(llvm::outs());
   }
 
   llvm::AllocaInst *Alloca = nullptr;
@@ -515,7 +520,7 @@ llvm::AllocaInst *WorkitemHandler::createAlignedAndPaddedContextAlloca(
     GlobalVariable *LocalSize;
     LoadInst *LocalSizeLoad[3];
     for (int i = 0; i < 3; ++i) {
-      std::string Name = LID_G_NAME(i);
+      std::string Name = LS_G_NAME(i);
       LocalSize = cast<GlobalVariable>(M->getOrInsertGlobal(Name, ST));
       LocalSizeLoad[i] = Builder.CreateLoad(ST, LocalSize);
     }
@@ -684,7 +689,7 @@ llvm::Instruction *WorkitemHandler::getWorkGroupSizeInstr() {
 
   if (WGSizeInstr != nullptr)
     return WGSizeInstr;
-
+  
   IRBuilder<> Builder(K->getEntryBlock().getTerminator());
 
   llvm::Module *M = K->getParent();

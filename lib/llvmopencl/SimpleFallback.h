@@ -8,12 +8,7 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/Pass.h>
 #include <llvm/Passes/PassBuilder.h>
-/* 
-#include "VariableUniformityAnalysis.h"
-#include "VariableUniformityAnalysisResult.hh"
-#include "WorkitemHandler.h"
 
- */
 namespace pocl {
 
 

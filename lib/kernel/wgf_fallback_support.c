@@ -25,7 +25,7 @@ static unsigned int sg_barrier_status[20];
 
 
 
-//#define DBG
+#define DBG
 
 
 
@@ -33,9 +33,10 @@ void __pocl_sched_init(long x_size, long y_size, long z_size, int sg_size)
 {
    
 #ifdef DBG
-    fprintf(stdout, "SCHEDULER>> init called %ld\t%ld\t%ld\t%ld\n",sg_size,x_size,y_size,z_size);
+    printf("SCHEDULER>> init called %ld\t%ld\t%ld\t%ld\n",sg_size,x_size,y_size,z_size);
 #endif
-
+    printf("hell0\n");
+    //fprintf(stdout, "hellf\n");
     sub_group_size = sg_size;
 
     // Set wg dimensions for scheduler
@@ -64,7 +65,7 @@ void __pocl_sched_init(long x_size, long y_size, long z_size, int sg_size)
 
 
 void __pocl_next_jump(long idx){
-    //fprintf(stdout, "jumping next to index: %d\n",idx);
+    //printf("jumping next to index: %d\n",idx);
 }
 
 
@@ -73,16 +74,16 @@ static void resolve_barriers()
 {   
 
 #ifdef DBG
-    fprintf(stdout, "SCHEDULER>> BEFORE resolving barriers\n");
-    fprintf(stdout, "SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",waiting_count,sg_barriers_active);
+    printf("SCHEDULER>> BEFORE resolving barriers\n");
+    printf("SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",waiting_count,sg_barriers_active);
 
     for(int i = 0; i<n_subgroups; i++){
-        fprintf(stdout,"sg_wi_counter[%d]: %d\t",i,sg_wi_counter[i]);
+        printf("sg_wi_counter[%d]: %d\t",i,sg_wi_counter[i]);
     }
     for(int i = 0; i<n_subgroups; i++){
-        fprintf(stdout,"sg_barrier_status[%d]: %d\t",i,sg_barrier_status[i]);
+        printf("sg_barrier_status[%d]: %d\t",i,sg_barrier_status[i]);
     }
-    fprintf(stdout, "\n");
+    printf("\n");
 
 #endif
 
@@ -122,16 +123,16 @@ static void resolve_barriers()
     }
 
 #ifdef DBG
-    fprintf(stdout, "SCHEDULER>> AFTER resolving barriers\n");
-    fprintf(stdout, "SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",waiting_count,sg_barriers_active);
+    printf("SCHEDULER>> AFTER resolving barriers\n");
+    printf("SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",waiting_count,sg_barriers_active);
 
     for(int i = 0; i<n_subgroups; i++){
-        fprintf(stdout,"sg_wi_counter[%d]: %d\t",i,sg_wi_counter[i]);
+        printf("sg_wi_counter[%d]: %d\t",i,sg_wi_counter[i]);
     }
     for(int i = 0; i<n_subgroups; i++){
-        fprintf(stdout,"sg_barrier_status[%d]: %d\t",i,sg_barrier_status[i]);
+        printf("sg_barrier_status[%d]: %d\t",i,sg_barrier_status[i]);
     }
-    fprintf(stdout, "\n");
+    printf("\n");
 #endif
 
 
@@ -143,9 +144,9 @@ static void print_barrier_status(){
 
     for(int i = 0; i < n_subgroups; i++){
         
-        fprintf(stdout, " %d ", sg_wi_counter[i]);
+        printf(" %d ", sg_wi_counter[i]);
     }
-    fprintf(stdout,"\n");
+    printf("\n");
 
 }
 
@@ -166,8 +167,8 @@ void __pocl_barrier_reached(long local_id_x, long local_id_y, long local_id_z)
     sg_wi_counter[sg_id]++;
 
 #ifdef DBG
-    fprintf(stdout, "SCHEDULER>> BARRIER REACHED\n");
-    fprintf(stdout, "SCHEDULER>> linearID: %d\tlocal_id_x: %d\tlocal_id_y: %d\tlocal_id_z: %d\tsg_id: %d\t sg_local_id: %d\n",linearId,local_id_x,local_id_y,local_id_z,sg_id, sg_local_id);
+    printf("SCHEDULER>> BARRIER REACHED\n");
+    printf("SCHEDULER>> linearID: %d\tlocal_id_x: %d\tlocal_id_y: %d\tlocal_id_z: %d\tsg_id: %d\t sg_local_id: %d\n",linearId,local_id_x,local_id_y,local_id_z,sg_id, sg_local_id);
     print_barrier_status();
 #endif
     
@@ -197,8 +198,8 @@ void __pocl_sg_barrier_reached(long local_id_x, long local_id_y, long local_id_z
     waiting_count++;
    
 #ifdef DBG
-    fprintf(stdout, "SCHEDULER>> SG BARRIER REACHED\n");
-    fprintf(stdout, "SCHEDULER>> sg_id: %d\t sg_local_id: %d\n",sg_id, sg_local_id);
+    printf("SCHEDULER>> SG BARRIER REACHED\n");
+    printf("SCHEDULER>> sg_id: %d\t sg_local_id: %d\n",sg_id, sg_local_id);
     print_barrier_status();
     
 #endif
@@ -222,7 +223,7 @@ long __pocl_sched_work_item()
             next_wi = i*sub_group_size + sg_wi_counter[i];
 
 #ifdef DBG
-            fprintf(stdout, "SCHEDULER>> NEXT WI :%ld\n",next_wi);
+            printf("SCHEDULER>> NEXT WI :%ld\n",next_wi);
 #endif
 
             break;
@@ -236,7 +237,7 @@ void __pocl_sched_clean()
 {
 
 #ifdef DBG
-    fprintf(stdout, "SCHEDULER>> clean called\n");
+    printf("SCHEDULER>> clean called\n");
 #endif
 
     //free(sg_wi_counter);

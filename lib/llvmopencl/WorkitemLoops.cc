@@ -481,6 +481,8 @@ bool WorkitemLoopsImpl::processFunction(Function &F) {
     entryCounts[Region->entryBB()]++;
   }
 
+  F.dump();
+
 #if 0
   std::cerr << "### After context code addition:" << std::endl;
   F.viewCFG();
