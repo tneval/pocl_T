@@ -395,7 +395,7 @@ llvm::AllocaInst *WorkitemHandler::createAlignedAndPaddedContextAlloca(
     bool &PaddingAdded) {
 
 
-      Inst->print(llvm::outs());
+      //Inst->print(llvm::outs());
 
 
   PaddingAdded = false;
@@ -512,7 +512,7 @@ llvm::AllocaInst *WorkitemHandler::createAlignedAndPaddedContextAlloca(
   } else {
     ElementType = Inst->getType();
     AllocType = ElementType;
-    AllocType->print(llvm::outs());
+    //AllocType->print(llvm::outs());
   }
 
   llvm::AllocaInst *Alloca = nullptr;

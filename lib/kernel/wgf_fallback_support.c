@@ -25,7 +25,7 @@ static unsigned int sg_barrier_status[20];
 
 
 
-#define DBG
+//#define DBG
 
 
 
@@ -35,7 +35,6 @@ void __pocl_sched_init(long x_size, long y_size, long z_size, int sg_size)
 #ifdef DBG
     printf("SCHEDULER>> init called %ld\t%ld\t%ld\t%ld\n",sg_size,x_size,y_size,z_size);
 #endif
-    printf("hell0\n");
     //fprintf(stdout, "hellf\n");
     sub_group_size = sg_size;
 
