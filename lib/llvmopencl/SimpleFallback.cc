@@ -637,7 +637,11 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     if (llvm::MDNode *SGSizeMD = F->getMetadata("intel_reqd_sub_group_size")) {
         // Use the constant from the metadata.
         llvm::ConstantAsMetadata *ConstMD = llvm::cast<llvm::ConstantAsMetadata>(SGSizeMD->getOperand(0));
-        sgSize = llvm::cast<llvm::ConstantInt>(ConstMD->getValue());    
+        
+        uint64_t value = (llvm::cast<llvm::ConstantInt>(ConstMD->getValue()))->getZExtValue();
+
+      sgSize = llvm::ConstantInt::get(llvm::Type::getIntNTy(F->getContext(), 64), value);
+
     }else{
         sgSize = llvm::cast<llvm::ConstantInt>(LocalSizeValues[0]);
     }
@@ -944,7 +948,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // added 5.12; trying to fix domination issue 
     fixUndominatedVariableUses(DT, Func);
 
-    Func.dump();
+    //Func.dump();
 
     return true;
 
@@ -957,7 +961,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
         return llvm::PreservedAnalyses::all();
     }
 
-    F.dump();
+    //F.dump();
 
     
     WorkitemHandlerType WIH = AM.getResult<WorkitemHandlerChooser>(F).WIH;

@@ -29,7 +29,7 @@ static unsigned int sg_barrier_status[20];
 
 
 
-void __pocl_sched_init(long x_size, long y_size, long z_size, int sg_size)
+void __pocl_sched_init(long x_size, long y_size, long z_size, long sg_size)
 {
    
 #ifdef DBG
