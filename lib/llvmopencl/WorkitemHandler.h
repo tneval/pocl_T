@@ -90,6 +90,7 @@ protected:
   std::array<llvm::Value *, 3> GlobalIdGlobals;
   std::array<llvm::Value *, 3> GroupIdGlobals;
 
+
   // Points to the global size computation instructions in the entry
   // block of the currently handled kernel.
   std::array<llvm::Instruction *, 3> GlobalSizes;

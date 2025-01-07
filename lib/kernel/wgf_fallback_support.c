@@ -8,6 +8,23 @@ static unsigned int local_size_y;
 static unsigned int local_size_z;
 
 
+typedef struct {
+    unsigned int local_size_x;
+    unsigned int local_size_y;
+    unsigned int local_size_z;
+    unsigned int sub_group_size;
+    unsigned int n_subgroups;
+    int waiting_count;
+    int sg_barriers_active;
+    unsigned int sg_wi_counter[4096];
+    unsigned int sg_barrier_status[4096];
+} WGState;
+
+typedef struct {
+    unsigned int a;
+    unsigned int b;
+} testStruc;
+
 // Subgroup size
 static unsigned int sub_group_size;
 
@@ -19,22 +36,26 @@ static int waiting_count;
 static int sg_barriers_active;
 
 
-static unsigned int sg_wi_counter[20];
-static unsigned int sg_barrier_status[20];
+static unsigned int sg_wi_counter[4096];
+static unsigned int sg_barrier_status[4096];
 
 
-
+// 
 
 //#define DBG
 
 
-
+// Init needs group ids as well?
 void __pocl_sched_init(long x_size, long y_size, long z_size, long sg_size)
 {
    
 #ifdef DBG
     printf("SCHEDULER>> init called %ld\t%ld\t%ld\t%ld\n",sg_size,x_size,y_size,z_size);
 #endif
+
+
+
+
     //fprintf(stdout, "hellf\n");
     sub_group_size = sg_size;
 

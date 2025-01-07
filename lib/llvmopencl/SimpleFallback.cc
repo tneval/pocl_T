@@ -65,6 +65,7 @@ private:
     std::array<llvm::GlobalVariable *, 3> GlobalIdIterators;
     std::array<llvm::GlobalVariable *, 3> GroupIdIterators;
     std::array<llvm::Value *, 3> LocalSizeValues;
+    std::array<llvm::Value *, 3> Offsets;
     llvm::ConstantInt* sgSize;
 
     size_t TempInstructionIndex;
@@ -629,10 +630,20 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     // Init call: Instead of relying global variables, use the metadata
-
+    llvm::Instruction *lastInst;
      // Create function call to __pocl_sched_init
     llvm::Function *schedFuncI = M->getFunction("__pocl_sched_init");
     //llvm::outs() << "Function signature: " << *(schedFuncI->getType()) << "\n";
+
+    std::vector<llvm::Type *> Elems = {
+        llvm::Type::getInt32Ty(M->getContext()),
+        llvm::Type::getInt32Ty(M->getContext())
+    };
+
+    llvm::StructType *TestStruct = llvm::StructType::create(M->getContext(), Elems, "test_struct");
+
+    llvm::AllocaInst *StructAlloc = Builder.CreateAlloca(TestStruct, nullptr, "testStruct_instance");
+
     
     if (llvm::MDNode *SGSizeMD = F->getMetadata("intel_reqd_sub_group_size")) {
         // Use the constant from the metadata.
@@ -640,14 +651,23 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         
         uint64_t value = (llvm::cast<llvm::ConstantInt>(ConstMD->getValue()))->getZExtValue();
 
-      sgSize = llvm::ConstantInt::get(llvm::Type::getIntNTy(F->getContext(), 64), value);
+        sgSize = llvm::ConstantInt::get(llvm::Type::getIntNTy(F->getContext(), 64), value);
+
+        lastInst = entryBlockBuilder.CreateCall(schedFuncI, {LocalSizeValues[0], LocalSizeValues[1], LocalSizeValues[2], sgSize});
 
     }else{
-        sgSize = llvm::cast<llvm::ConstantInt>(LocalSizeValues[0]);
+        if(WGDynamicLocalSize){
+            llvm::Instruction *loadX = entryBlockBuilder.CreateLoad(ST, LocalSizeGlobals[0]);
+            lastInst = entryBlockBuilder.CreateCall(schedFuncI, {LocalSizeValues[0], LocalSizeValues[1], LocalSizeValues[2], loadX});
+
+        }else{
+            sgSize = llvm::cast<llvm::ConstantInt>(LocalSizeValues[0]);
+            lastInst = entryBlockBuilder.CreateCall(schedFuncI, {LocalSizeValues[0], LocalSizeValues[1], LocalSizeValues[2], sgSize});
+        }
     }
     
     // This will pass the sg size and local size to init function.
-    llvm::Instruction *lastInst = entryBlockBuilder.CreateCall(schedFuncI, {LocalSizeValues[0], LocalSizeValues[1], LocalSizeValues[2], sgSize});
+    
     
     ////////////////////////////////////////////////////////////////////////////////////////////
     
@@ -874,21 +894,33 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     llvm::Value* multX = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeX, false), x_gid, "mulx");
     llvm::Value* gid_x = bBuilder.CreateAdd(multX, loc_x, "gid_x");
+    llvm::GlobalVariable *offsetXPtr =
+      llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_global_offset_x", ST));
+    llvm::Value* offset_x = bBuilder.CreateLoad(ST, offsetXPtr,"offset_x");
+    llvm::Value* gid_x_off= bBuilder.CreateAdd(gid_x, offset_x, "gid_x_off");
 
 
     llvm::Value* multY = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeY, false), y_gid, "muly");
     llvm::Value* gid_y = bBuilder.CreateAdd(multY, loc_y, "gid_y");
+    llvm::GlobalVariable *offsetYPtr =
+      llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_global_offset_y", ST));
+    llvm::Value* offset_y = bBuilder.CreateLoad(ST, offsetYPtr,"offset_y");
+    llvm::Value* gid_y_off= bBuilder.CreateAdd(gid_y, offset_y, "gid_y_off");
 
     llvm::Value* multZ = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeZ, false), z_gid, "mulz");
     llvm::Value* gid_z = bBuilder.CreateAdd(multZ, loc_z, "gid_z");
+    llvm::GlobalVariable *offsetZPtr =
+      llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_global_offset_z", ST));
+    llvm::Value* offset_z = bBuilder.CreateLoad(ST, offsetZPtr,"offset_z");
+    llvm::Value* gid_z_off= bBuilder.CreateAdd(gid_z, offset_z, "gid_z_off");
 
 
     // These will store global ids
-    bBuilder.CreateStore(gid_x, GlobalIdIterators[0]);
+    bBuilder.CreateStore(gid_x_off, GlobalIdIterators[0]);
 
-    bBuilder.CreateStore(gid_y, GlobalIdIterators[1]);
+    bBuilder.CreateStore(gid_y_off, GlobalIdIterators[1]);
 
-    lastInst = bBuilder.CreateStore(gid_z, GlobalIdIterators[2]);
+    lastInst = bBuilder.CreateStore(gid_z_off, GlobalIdIterators[2]);
 
     //global_id(dim)=global_offset(dim)+local_work_size(dim)×group_id(dim)+local_id(dim)
 
@@ -945,6 +977,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
     handleLocalMemAllocas();
 
+    
     // added 5.12; trying to fix domination issue 
     fixUndominatedVariableUses(DT, Func);
 
