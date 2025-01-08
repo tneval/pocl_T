@@ -635,37 +635,168 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::Function *schedFuncI = M->getFunction("__pocl_sched_init");
     //llvm::outs() << "Function signature: " << *(schedFuncI->getType()) << "\n";
 
-    std::vector<llvm::Type *> Elems = {
-        llvm::Type::getInt32Ty(M->getContext()),
-        llvm::Type::getInt32Ty(M->getContext())
+
+    ////////////////////////////
+    
+    llvm::FunctionCallee mallocFunc;
+    llvm::Value *mallocCall;
+    llvm::FunctionCallee freeFunc;
+
+    // Use malloc/free only when size is not known compile time
+    if(WGDynamicLocalSize){
+        mallocFunc = M->getOrInsertFunction(
+        "malloc", 
+        llvm::FunctionType::get(
+            llvm::PointerType::get(llvm::Type::getInt8Ty(M->getContext()), 0),  // Return type: i8*
+            {llvm::Type::getInt64Ty(M->getContext())}, // Argument: size_t (i64)
+            false                                     // Not variadic
+        )
+        );
+
+        freeFunc = M->getOrInsertFunction(
+        "free", 
+        llvm::FunctionType::get(
+            llvm::Type::getVoidTy(M->getContext()), // Return type: void
+            {llvm::PointerType::get(llvm::Type::getInt8Ty(M->getContext()), 0), }, // Argument: i8* (pointer)
+            false                                     // Not variadic
+        )
+        );
+    }
+
+
+
+    std::vector<llvm::Type *> wgStateData = {
+        // x_size of workgroup
+        llvm::Type::getInt64Ty(M->getContext()),
+        // y-size of workgroup
+        llvm::Type::getInt64Ty(M->getContext()),
+        // z-size of workgroup
+        llvm::Type::getInt64Ty(M->getContext()),
+        // sg-size 
+        llvm::Type::getInt64Ty(M->getContext()),
+        // n subgroups
+        llvm::Type::getInt64Ty(M->getContext()),
+        // waiting count
+        llvm::Type::getInt64Ty(M->getContext()),
+        //sg barriers active
+        llvm::Type::getInt64Ty(M->getContext()),
+        // some array
+        //llvm::ArrayType::get(llvm::Type::getInt64Ty(M->getContext()),2),
+        llvm::PointerType::get(llvm::Type::getInt64Ty(M->getContext()), 0),
+        // some value
+        llvm::Type::getInt64Ty(M->getContext())
     };
 
-    llvm::StructType *TestStruct = llvm::StructType::create(M->getContext(), Elems, "test_struct");
+    // Use get instead of create to use the struct declared in scheduler source
+    llvm::StructType *wgState = llvm::StructType::get(M->getContext(), wgStateData, "wgState");
 
-    llvm::AllocaInst *StructAlloc = Builder.CreateAlloca(TestStruct, nullptr, "testStruct_instance");
+    llvm::AllocaInst *wgStateAlloc = entryBlockBuilder.CreateAlloca(wgState, nullptr, "wg_state_data");
+
+    llvm::Value *state_local_size_x = entryBlockBuilder.CreateGEP(wgState, wgStateAlloc, 
+    {llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), 0), llvm::ConstantInt::get(llvm::Type::getInt32Ty(M->getContext()), 0)});
+
+    llvm::Instruction *load_x_size = entryBlockBuilder.CreateLoad(ST, LocalSizeGlobals[0]);
+    entryBlockBuilder.CreateStore(load_x_size, state_local_size_x);
+
+    llvm::Value *state_local_size_y = entryBlockBuilder.CreateGEP(wgState, wgStateAlloc, 
+    {llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), 0), llvm::ConstantInt::get(llvm::Type::getInt32Ty(M->getContext()), 1)});
+
+    llvm::Instruction *load_y_size = entryBlockBuilder.CreateLoad(ST, LocalSizeGlobals[1]);
+    
+    entryBlockBuilder.CreateStore(load_y_size, state_local_size_y);
+
+    llvm::Value *state_local_size_z = entryBlockBuilder.CreateGEP(wgState, wgStateAlloc, 
+    {llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), 0), llvm::ConstantInt::get(llvm::Type::getInt32Ty(M->getContext()), 2)});
+
+    llvm::Instruction *load_z_size = entryBlockBuilder.CreateLoad(ST, LocalSizeGlobals[2]);
+    entryBlockBuilder.CreateStore(load_z_size, state_local_size_z);
+
+    llvm::Value *sg_size = entryBlockBuilder.CreateGEP(wgState, wgStateAlloc, 
+    {llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), 0), llvm::ConstantInt::get(llvm::Type::getInt32Ty(M->getContext()), 3)});
+
+
 
     
+
+    
+
+    //////////////////////////////
+
+    // SUBGROUP SIZE
+    // IF specified with intel_reqd_sub_group_size, known at compile time.
     if (llvm::MDNode *SGSizeMD = F->getMetadata("intel_reqd_sub_group_size")) {
         // Use the constant from the metadata.
         llvm::ConstantAsMetadata *ConstMD = llvm::cast<llvm::ConstantAsMetadata>(SGSizeMD->getOperand(0));
+
+
+        uint64_t value64 = (llvm::cast<llvm::ConstantInt>(ConstMD->getValue()))->getZExtValue();
+        llvm::ConstantInt *sgSize64 = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), value64);
+        sgSize = llvm::cast<llvm::ConstantInt>(sgSize64);
+        entryBlockBuilder.CreateStore(sgSize64, sg_size);
         
-        uint64_t value = (llvm::cast<llvm::ConstantInt>(ConstMD->getValue()))->getZExtValue();
+        //uint64_t value = (llvm::cast<llvm::ConstantInt>(ConstMD->getValue()))->getZExtValue();
 
-        sgSize = llvm::ConstantInt::get(llvm::Type::getIntNTy(F->getContext(), 64), value);
+        //sgSize = llvm::ConstantInt::get(llvm::Type::getIntNTy(F->getContext(), 64), value);
 
-        lastInst = entryBlockBuilder.CreateCall(schedFuncI, {LocalSizeValues[0], LocalSizeValues[1], LocalSizeValues[2], sgSize});
+        //lastInst = entryBlockBuilder.CreateCall(schedFuncI, {LocalSizeValues[0], LocalSizeValues[1], LocalSizeValues[2], sgSize, wgStateAlloc});
 
     }else{
+
+        
+
         if(WGDynamicLocalSize){
-            llvm::Instruction *loadX = entryBlockBuilder.CreateLoad(ST, LocalSizeGlobals[0]);
-            lastInst = entryBlockBuilder.CreateCall(schedFuncI, {LocalSizeValues[0], LocalSizeValues[1], LocalSizeValues[2], loadX});
+            //llvm::Instruction *loadX = entryBlockBuilder.CreateLoad(ST, LocalSizeGlobals[0]);
+            entryBlockBuilder.CreateStore(load_x_size, sg_size);
+            //lastInst = entryBlockBuilder.CreateCall(schedFuncI, {LocalSizeValues[0], LocalSizeValues[1], LocalSizeValues[2], loadX});
 
         }else{
             sgSize = llvm::cast<llvm::ConstantInt>(LocalSizeValues[0]);
-            lastInst = entryBlockBuilder.CreateCall(schedFuncI, {LocalSizeValues[0], LocalSizeValues[1], LocalSizeValues[2], sgSize});
+            entryBlockBuilder.CreateStore(sgSize, sg_size);
+            
         }
     }
-    
+
+    llvm::Value *pointerField = entryBlockBuilder.CreateGEP(
+            wgState,
+            wgStateAlloc,
+            {llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), 0), // Struct base
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(M->getContext()), 7)}); // Field index
+
+    // Runtime sizes
+    if(WGDynamicLocalSize){
+        mallocCall = entryBlockBuilder.CreateCall(mallocFunc,load_x_size);
+
+        entryBlockBuilder.CreateStore(mallocCall, pointerField);
+
+    // Compile-time sizes
+    }else{
+
+        unsigned long wis = WGLocalSizeX * WGLocalSizeY * WGLocalSizeZ;
+
+        // Number of workitems:
+        llvm::ConstantInt *n_WI = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), wis);
+        
+      
+        llvm::Value *n_SG = llvm::ConstantInt::get(ST,n_WI->getValue() *sgSize->getValue());
+
+        // FIX THIS
+        /* llvm::Value *arrayAlloca = entryBlockBuilder.CreateAlloca(
+        llvm::ArrayType::get(llvm::Type::getInt64Ty(M->getContext()), n_SG),
+        nullptr,
+        "arrayAlloc");
+
+        llvm::Value *arrayPtr = entryBlockBuilder.CreateBitCast(arrayAlloca, 
+        llvm::PointerType::get(llvm::Type::getInt64Ty(M->getContext()), 0));
+
+        entryBlockBuilder.CreateStore(arrayPtr, pointerField); */
+    }
+
+
+
+
+
+
+    lastInst = entryBlockBuilder.CreateCall(schedFuncI, { wgStateAlloc });
     // This will pass the sg size and local size to init function.
     
     
@@ -770,7 +901,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             oldExitBlockBuilder.CreateStore(next_block_idx, next_block_ptr);
            
             llvm::Function *barrierReached = M->getFunction("__pocl_barrier_reached");           
-            oldExitBlockBuilder.CreateCall(barrierReached,{local_x, local_y, local_z});
+            oldExitBlockBuilder.CreateCall(barrierReached,{local_x, local_y, local_z, wgStateAlloc});
             
 
             // Add branch to dispatcher
@@ -786,7 +917,11 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             llvm::Function *schedClean = M->getFunction("__pocl_sched_clean");
 
             newExitBlockBuilder.CreateCall(schedClean);
-
+            
+            if(WGDynamicLocalSize){
+                newExitBlockBuilder.CreateCall(freeFunc, {mallocCall});
+            }
+            
             newExitBlockBuilder.CreateRetVoid();
 
         // These are "Explicit" barriers
@@ -834,7 +969,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             // Register barrier entry
             if(Barrier::hasBarrier(BBlock)){
                 llvm::Function *barrierReached = M->getFunction("__pocl_barrier_reached");           
-                barrierBlockBuilder.CreateCall(barrierReached,{local_x, local_y, local_z});
+                barrierBlockBuilder.CreateCall(barrierReached,{local_x, local_y, local_z,wgStateAlloc});
             }else if(SubgroupBarrier::hasSGBarrier(BBlock)){
                 llvm::Function *sgbarrierReached = M->getFunction("__pocl_sg_barrier_reached");
                 barrierBlockBuilder.CreateCall(sgbarrierReached,{local_x, local_y, local_z});
@@ -981,7 +1116,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // added 5.12; trying to fix domination issue 
     fixUndominatedVariableUses(DT, Func);
 
-    //Func.dump();
+    M->dump();
 
     return true;
 

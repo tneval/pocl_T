@@ -7,7 +7,7 @@ static unsigned int local_size_x;
 static unsigned int local_size_y;
 static unsigned int local_size_z;
 
-
+/* 
 typedef struct {
     unsigned int local_size_x;
     unsigned int local_size_y;
@@ -18,12 +18,20 @@ typedef struct {
     int sg_barriers_active;
     unsigned int sg_wi_counter[4096];
     unsigned int sg_barrier_status[4096];
-} WGState;
+} WGState; */
 
+// This can be referenced from kernel because its visibility is global
 typedef struct {
-    unsigned int a;
-    unsigned int b;
-} testStruc;
+    unsigned long local_size_x;
+    unsigned long local_size_y;
+    unsigned long local_size_z;
+    unsigned long sg_size;
+    unsigned long n_subgroups;
+    unsigned long waiting_count;
+    unsigned long sg_barriers_active;
+    unsigned long *counter;
+    unsigned long testi;
+} wgState;
 
 // Subgroup size
 static unsigned int sub_group_size;
@@ -42,30 +50,44 @@ static unsigned int sg_barrier_status[4096];
 
 // 
 
-//#define DBG
+#define DBG
 
 
 // Init needs group ids as well?
-void __pocl_sched_init(long x_size, long y_size, long z_size, long sg_size)
+void __pocl_sched_init(wgState *ts)
 {
    
 #ifdef DBG
-    printf("SCHEDULER>> init called %ld\t%ld\t%ld\t%ld\n",sg_size,x_size,y_size,z_size);
+    //printf("SCHEDULER>> init called %ld\t%ld\t%ld\t%ld\n",sg_size,x_size,y_size,z_size);
 #endif
 
+    ts->counter[0] = 0;
+    ts->counter[1] = 1;
+    ts->testi = 2;
+
+    ts->counter[0] = 44;
+    ts->counter[1] = 55;
+    ts->counter[2] = 66;
+    ts->counter[3] = 77;
+    
+    ts->testi = 88;
 
 
 
-    //fprintf(stdout, "hellf\n");
-    sub_group_size = sg_size;
+    printf("struct (init): %d, %d, %d, %d\n", ts->local_size_x, ts->local_size_y, ts->local_size_z, ts->sg_size);
+    printf("arrs: (%d, %d), %d\n", ts->counter[0], ts->counter[1],ts->testi);
+
+    printf("%d, %d, %d, %d, - %d\n", ts->counter[0],ts->counter[1],ts->counter[2],ts->counter[3],ts->testi);
+
+    sub_group_size = ts->sg_size;
 
     // Set wg dimensions for scheduler
-    local_size_x = x_size;
-    local_size_y = y_size;
-    local_size_z = z_size;
+    local_size_x = ts->local_size_x;
+    local_size_y = ts->local_size_y;
+    local_size_z = ts->local_size_z;
 
 
-    n_subgroups = (x_size*y_size*z_size)/sg_size;
+    n_subgroups = (local_size_x*local_size_y*local_size_z)/ts->sg_size;
 
     waiting_count = 0;
 
@@ -172,8 +194,12 @@ static void print_barrier_status(){
 
 
 
-void __pocl_barrier_reached(long local_id_x, long local_id_y, long local_id_z)
+void __pocl_barrier_reached(long local_id_x, long local_id_y, long local_id_z, wgState *ts)
 {
+        /* printf("struct: %d, %d\n", ts->a, ts->b);
+        ts->a++;
+        ts->b++; */
+
     
 
     // Linearize wg id
