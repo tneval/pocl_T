@@ -250,6 +250,7 @@ pocl_basic_run (void *data, _cl_command_node *cmd)
   cl_program program = kernel->program;
   pocl_kernel_metadata_t *meta = kernel->meta;
   struct pocl_context *pc = &cmd->command.run.pc;
+  //pc->testi = 23;
   cl_uint dev_i = cmd->program_device_i;
 
   if (program->builtin_kernel_attributes)

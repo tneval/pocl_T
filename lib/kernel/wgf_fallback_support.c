@@ -7,8 +7,8 @@ static unsigned int local_size_x;
 static unsigned int local_size_y;
 static unsigned int local_size_z;
 
-/* 
-typedef struct {
+
+/* typedef struct {
     unsigned int local_size_x;
     unsigned int local_size_y;
     unsigned int local_size_z;
@@ -33,6 +33,8 @@ typedef struct {
     unsigned long testi;
 } wgState;
 
+
+
 // Subgroup size
 static unsigned int sub_group_size;
 
@@ -50,8 +52,31 @@ static unsigned int sg_barrier_status[4096];
 
 // 
 
-#define DBG
+//#define DBG
 
+/* 
+void __pocl_context_test(unsigned int* ctx_val)
+{
+    printf("Context value: %d, %d, %d, %d, %d\n",ctx_val[0],ctx_val[1],ctx_val[2],ctx_val[3],ctx_val[4]);
+
+    ctx_val[0]++;
+    ctx_val[1]++;
+    ctx_val[2]++;
+    ctx_val[3]++;
+    ctx_val[4]++;
+}
+ */
+
+void __pocl_context_test(unsigned long *test, wgState *ts)
+{  
+    printf("hello\n");
+    for(int i = 0; i< 4; i++){
+        printf("barrier counter (%d): %ld\n",i, test[i]);
+        test[i]++;
+    }
+    ts->counter = test;
+
+}
 
 // Init needs group ids as well?
 void __pocl_sched_init(wgState *ts)

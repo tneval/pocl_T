@@ -649,6 +649,8 @@ const char *WorkgroupVariablesArray[NumWorkgroupVariables+1] = {"_local_id_x",
                                     "_global_id_y",
                                     "_global_id_z",
                                     "_pocl_sub_group_size",
+                                    "_testi",
+                                    "_taulukko1",
                                     PoclGVarBufferName,
                                     NULL};
 

@@ -86,7 +86,9 @@ enum PoclContextStructFields {
   PC_PRINTF_BUFFER_POSITION,
   PC_PRINTF_BUFFER_CAPACITY,
   PC_GLOBAL_VAR_BUFFER,
-  PC_WORK_DIM
+  PC_WORK_DIM,
+  PC_TESTI,
+  PC_TABLE1
 };
 
 using FunctionVec = std::vector<llvm::Function *>;
@@ -234,7 +236,9 @@ bool WorkgroupImpl::runOnModule(Module &M, llvm::FunctionAnalysisManager &FAM) {
       PointerType::get(Int32T, DeviceGlobalASid), // PRINTF_BUFFER_POSITION
       Int32T,                                     // PRINTF_BUFFER_CAPACITY
       PointerType::get(Int8T, DeviceGlobalASid),  // GLOBAL_VAR_BUFFER
-      Int32T);                                    // WORK_DIM
+      Int32T,                                    // WORK_DIM
+      Int32T,
+      PointerType::get(Int32T, DeviceGlobalASid));
 
   LauncherFuncT = FunctionType::get(
       Type::getVoidTy(*C),
@@ -478,6 +482,8 @@ bool WorkgroupImpl::runOnModule(Module &M, llvm::FunctionAnalysisManager &FAM) {
 #endif
   }
 
+  M.dump();
+
   return true;
 }
 
@@ -594,23 +600,30 @@ llvm::Value *WorkgroupImpl::createLoadFromContext(IRBuilder<> &Builder,
 
   llvm::LoadInst *Load = nullptr;
   if (SizeTWidth == 64) {
-    if (FieldIndex == -1)
+    if (FieldIndex == -1){
+    std::cout <<"a\n";
       Ptr = Builder.CreateConstGEP1_64(
           GEPType,
           GEP, 0);
-    else
+    }else{
+    std::cout << "b\n";
       Ptr = Builder.CreateConstGEP2_64(
           GEPType,
           GEP, 0, FieldIndex);
+    }
   } else {
-    if (FieldIndex == -1)
+    if (FieldIndex == -1){
+      std::cout << "c\n";
       Ptr = Builder.CreateConstGEP1_32(
           GEPType,
           GEP, 0);
-    else
+    }else{
+      std::cout << "d\n";
       Ptr = Builder.CreateConstGEP2_32(
           GEPType,
           GEP, 0, FieldIndex);
+
+    }
   }
 
   Type *FinalType = GEPType;
@@ -621,8 +634,11 @@ llvm::Value *WorkgroupImpl::createLoadFromContext(IRBuilder<> &Builder,
     FinalType = AT->getArrayElementType();
   }
 
+  
   Load = Builder.CreateLoad(FinalType, Ptr, Name.c_str());
   addRangeMetadataForPCField(Load, StructFieldIndex, FieldIndex);
+  Load->print(llvm::outs());
+  llvm::outs() << "\n";
   return Load;
 }
 
@@ -883,12 +899,18 @@ Function *WorkgroupImpl::createWrapper(Function *F,
 
   SmallVector<Value *, 8> FuncArgs;
   Function::arg_iterator ai = L->arg_begin();
+  std::cout << "HEP\n";
   for (unsigned i = 0, e = F->arg_size(); i != e; ++i) {
+    std::cout << "HEP2\n";
+    llvm::Argument &arg = *ai;
+    llvm::outs() << "Argument name: " << arg.getName()<<"\n";
     FuncArgs.push_back(&*ai);
     ++ai;
   }
 
   ContextArg = &*(ai++);
+      llvm::outs() << "Argument name: " << ContextArg->getName()<<"\n";
+
   GroupIdArgs.resize(3);
   GroupIdArgs[0] = &*(ai++);
   GroupIdArgs[1] = &*(ai++);
@@ -971,11 +993,15 @@ std::vector<llvm::Value *> WorkgroupImpl::globalHandlesToContextStructLoads(
   std::vector<Value*> StructLoads(GlobalHandleNames.size());
   for (size_t i = 0; i < GlobalHandleNames.size(); ++i) {
     if (M->getGlobalVariable(GlobalHandleNames.at(i)) == nullptr) {
+      std::cout << GlobalHandleNames.at(i) << " not found\n";
       StructLoads[i] = nullptr;
       continue;
     }
     StructLoads[i] = createLoadFromContext(
         Builder, StructFieldIndex, GlobalHandleNames.size() == 1 ? -1 : i);
+    
+    StructLoads[i]->print(llvm::outs());
+    llvm::outs() << "\n";
   }
   return StructLoads;
 }
@@ -1158,7 +1184,13 @@ void WorkgroupImpl::privatizeContext(Function *F) {
             {"_global_offset_x", "_global_offset_y", "_global_offset_z"},
             PC_GLOBAL_OFFSET));
   }
-
+  /////////////////////
+  std::cout << "privatizing _testi\n";
+  privatizeGlobals(F, Builder, {"_testi"}, globalHandlesToContextStructLoads(Builder,{"_testi"},PC_TESTI));
+  std::cout << "privatizing _taulukko\n";
+  //privatizeGlobals(F, Builder, {"_taulukko1"}, globalHandlesToContextStructLoads(Builder, {"_taulukko1"}, PC_TABLE1));
+  privatizeGlobals(F, Builder, {"_taulukko1"}, {createLoadFromContext(Builder, PC_TABLE1, -1, "_taulukko1")});
+  //////////////////////////////////
   privatizeGlobals(
     F, Builder, {"_work_dim"},
     globalHandlesToContextStructLoads(Builder, {"_work_dim"}, PC_WORK_DIM));

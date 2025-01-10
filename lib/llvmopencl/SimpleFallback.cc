@@ -86,10 +86,8 @@ private:
     void identifyContextVars();
 
     void allocateContextVars();
-    void addSave();
-    llvm::GetElementPtrInst* getGEP(llvm::AllocaInst *CtxArrayAlloca,llvm::Instruction *Before,bool AlignPadding);
-
-    llvm::AllocaInst *allocateJumpStorage(llvm::IRBuilder<> &builder);
+  
+    llvm::AllocaInst *allocateStorage(llvm::IRBuilder<> &builder, std::string varName, llvm::Value *nWI);
 
     llvm::Value *getNumberOfWIs(llvm::IRBuilder<> &Builder);
 
@@ -322,91 +320,7 @@ void SimpleFallbackImpl::allocateContextVars()
     }
 }
 
-void SimpleFallbackImpl::addSave()
-{
 
-    llvm::Type *ST = llvm::Type::getInt64Ty(M->getContext());
-   
-    for(int i = 0; i< contextVars.size(); i++){
-
-
-        llvm::BasicBlock::iterator definition = (llvm::dyn_cast<llvm::Instruction>(contextVars[i]))->getIterator();
-        ++definition;
-        while (llvm::isa<llvm::PHINode>(definition)) ++definition;
-
-        // TO CLEAN: Refactor by calling CreateContextArrayGEP.
-        llvm::IRBuilder<> ctxSaveBuilder(&*definition);
-
-        llvm::Value *local_x = ctxSaveBuilder.CreateLoad(ST,LocalIdIterators[0],"local_x");
-        llvm::Value *local_y = ctxSaveBuilder.CreateLoad(ST,LocalIdIterators[1],"local_y");
-        llvm::Value *local_z = ctxSaveBuilder.CreateLoad(ST,LocalIdIterators[2],"local_z");
-
-        // These are the indices for context arrays
-        std::vector<llvm::Value *> gepArgs;
-
-        gepArgs.push_back(llvm::ConstantInt::get(ST, 0));
-
-        gepArgs.push_back(local_z);
-        gepArgs.push_back(local_y);
-        gepArgs.push_back(local_x);
-
-        llvm::Instruction* TheStore = ctxSaveBuilder.CreateStore(contextVars[i],ctxSaveBuilder.CreateGEP(contextAllocas[i]->getAllocatedType(), contextAllocas[i], gepArgs));
-
-        InstructionVec Uses;
-
-        for (llvm::Instruction::use_iterator UI = contextVars[i]->use_begin(), UE = contextVars[i]->use_end();UI != UE; ++UI) {
-
-            llvm::Instruction *User = llvm::cast<llvm::Instruction>(UI->getUser());
-
-            if (User == NULL || User == TheStore) continue;
-
-            Uses.push_back(User);
-        }
-
-        for (InstructionVec::iterator I = Uses.begin(); I != Uses.end(); ++I) {
-    
-            llvm::Instruction *UserI = *I;
-                    
-            llvm::Instruction *ContextRestoreLocation = UserI;
-
-            llvm::Value* LoadedValue = addContextRestore(UserI, contextAllocas[i], contextVars[i]->getType(), false, ContextRestoreLocation, llvm::isa<llvm::AllocaInst>(contextVars[i]));
-            
-            UserI->replaceUsesOfWith(contextVars[i], LoadedValue);
-        
-        }
-    }
-}
-
-
-llvm::GetElementPtrInst* SimpleFallbackImpl::getGEP(llvm::AllocaInst *CtxArrayAlloca,llvm::Instruction *Before,bool AlignPadding)
-{
-
-    llvm::Type *ST = llvm::Type::getInt64Ty(M->getContext());
-
-    llvm::IRBuilder<> ctxLoadBuilder(Before);
-
-    llvm::Value *local_x = ctxLoadBuilder.CreateLoad(ST,LocalIdIterators[0],"local_x");
-    llvm::Value *local_y = ctxLoadBuilder.CreateLoad(ST,LocalIdIterators[1],"local_y");
-    llvm::Value *local_z = ctxLoadBuilder.CreateLoad(ST,LocalIdIterators[2],"local_z");
-
-
-    std::vector<llvm::Value *> GEPArgs;
-    
-    GEPArgs.push_back(llvm::ConstantInt::get(ST, 0));
-    GEPArgs.push_back(local_z);
-    GEPArgs.push_back(local_y);
-    GEPArgs.push_back(local_x);
-
-    if (AlignPadding)
-        GEPArgs.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(CtxArrayAlloca->getContext()), 0));
-    
-
-    //std::cout << "inserting GEP (getGEP)\n";
-    llvm::GetElementPtrInst *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(ctxLoadBuilder.CreateGEP(
-      CtxArrayAlloca->getAllocatedType(), CtxArrayAlloca, GEPArgs));
-    return GEP;
-
-}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -551,7 +465,7 @@ llvm::Value *SimpleFallbackImpl::getNumberOfWIs(llvm::IRBuilder<> &Builder){
 }
 
 
-llvm::AllocaInst *SimpleFallbackImpl::allocateJumpStorage(llvm::IRBuilder<> &entryBlockBuilder){
+llvm::AllocaInst *SimpleFallbackImpl::allocateStorage(llvm::IRBuilder<> &entryBlockBuilder, std::string varName, llvm::Value *nWI){
 
     // Create stack storage for index variable that directs wi to correct
     // next block after jumping from dispatcher.
@@ -561,12 +475,12 @@ llvm::AllocaInst *SimpleFallbackImpl::allocateJumpStorage(llvm::IRBuilder<> &ent
 
     // For storing the block ids, create alloca with dynamic size, using context save machinery.
     // For this, we need to use proper instruction as a parameter. First instruction of entry block is guaranteed to be like that.
-    llvm::AllocaInst *nextExitBlockArray = createAlignedAndPaddedContextAlloca(dummyInst,dummyInst,"jump_indices", PaddingAdded);
+    llvm::AllocaInst *nextExitBlockArray = createAlignedAndPaddedContextAlloca(dummyInst,dummyInst,varName, PaddingAdded);
     
     dummyInst->eraseFromParent();
 
 
-    llvm::Value *nWI = getNumberOfWIs(entryBlockBuilder);
+    //llvm::Value *nWI = getNumberOfWIs(entryBlockBuilder);
 
     
 
@@ -620,13 +534,46 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Array for exit block indices
     llvm::Type *Int64Ty = llvm::Type::getInt64Ty(M->getContext());
 
+
+    llvm::Value *nWI = getNumberOfWIs(entryBlockBuilder);
+
     // Alloca for storing the index of "next" block after dispatcher for each WI
     // Also initializes to zero
-    llvm::AllocaInst *nextJumpIndices = allocateJumpStorage(entryBlockBuilder);
+    llvm::AllocaInst *nextJumpIndices = allocateStorage(entryBlockBuilder, "jump_indices", nWI);
     
+    llvm::AllocaInst *barrier_counter = allocateStorage(entryBlockBuilder, "barrier_counters", nWI);
+
+    llvm::AllocaInst *barrier_counter2 = allocateStorage(entryBlockBuilder, "barrier_counters2", nWI);
     
     //addSchedulerInitCall();
+    //////////////////////////////////////////////////////////////////////////////////////////
 
+    /* llvm::Type *Int32T = llvm::Type::getInt32Ty(M->getContext());
+    llvm::Type *Int8T = llvm::Type::getInt8Ty(M->getContext());
+
+    unsigned long DeviceGlobalASid;
+    getModuleIntMetadata(*M, "device_global_as_id", DeviceGlobalASid);
+    
+
+    llvm::Type* taulType = llvm::PointerType::get(llvm::Type::getInt32Ty(M->getContext()), 0);
+
+    llvm::GlobalVariable *taulPtr =
+      llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_taulukko1", llvm::PointerType::get(llvm::Type::getInt32Ty(M->getContext()), 0)));
+    llvm::Value* taul_val = entryBlockBuilder.CreateLoad(taulType, taulPtr,"_taulukko1");
+
+
+    llvm::GlobalVariable *testiPtr =
+      llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_testi", ST));
+    llvm::Value* testi_val = entryBlockBuilder.CreateLoad(ST, testiPtr,"_testi");
+*/
+    llvm::Function *ctxFunc = M->getFunction("__pocl_context_test");
+    //entryBlockBuilder.CreateCall(ctxFunc, { testi_val });
+
+    //entryBlockBuilder.CreateCall(ctxFunc, {barrier_counter});
+    //entryBlockBuilder.CreateCall(ctxFunc, {barrier_counter});
+    //entryBlockBuilder.CreateCall(ctxFunc, {barrier_counter});
+    //entryBlockBuilder.CreateCall(ctxFunc, {taul_val});
+    //entryBlockBuilder.CreateCall(ctxFunc, {taul_val}); 
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     // Init call: Instead of relying global variables, use the metadata
@@ -717,7 +664,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
 
     
-
+    
     
 
     //////////////////////////////
@@ -780,20 +727,20 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         llvm::Value *n_SG = llvm::ConstantInt::get(ST,n_WI->getValue() *sgSize->getValue());
 
         // FIX THIS
-        /* llvm::Value *arrayAlloca = entryBlockBuilder.CreateAlloca(
-        llvm::ArrayType::get(llvm::Type::getInt64Ty(M->getContext()), n_SG),
+        llvm::Value *arrayAlloca = entryBlockBuilder.CreateAlloca(
+        llvm::ArrayType::get(llvm::Type::getInt64Ty(M->getContext()), 4), /////////////////FIX
         nullptr,
         "arrayAlloc");
 
         llvm::Value *arrayPtr = entryBlockBuilder.CreateBitCast(arrayAlloca, 
         llvm::PointerType::get(llvm::Type::getInt64Ty(M->getContext()), 0));
 
-        entryBlockBuilder.CreateStore(arrayPtr, pointerField); */
+        entryBlockBuilder.CreateStore(arrayPtr, pointerField);
     }
 
 
 
-
+    entryBlockBuilder.CreateCall(ctxFunc, {barrier_counter, wgStateAlloc});
 
 
     lastInst = entryBlockBuilder.CreateCall(schedFuncI, { wgStateAlloc });
@@ -863,7 +810,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             // This removes the old branch
             BBlock->getTerminator()->eraseFromParent();
 
-        // This is the "return" block
+        // This is the "return" 
         }else if(BBlock->getTerminator()->getNumSuccessors() == 0){
             
             //std::cout << "BARRIER: " << BBlock->getName().str() << std::endl;

@@ -65,6 +65,7 @@ struct pool_thread_data
   unsigned index;
   /* printf buffer*/
   void *printf_buffer;
+  unsigned int *table1;
   size_t thread_stack_size;
 };
 
@@ -212,6 +213,9 @@ static int
 get_wg_index_range (kernel_run_command *k, unsigned *start_index,
                     unsigned *end_index, int *last_wgs, unsigned num_threads)
 {
+
+  //printf("get_wg_index_range\n");
+
   const unsigned scaled_max_wgs = POCL_PTHREAD_MAX_WGS * num_threads;
   const unsigned scaled_min_wgs = POCL_PTHREAD_MIN_WGS * num_threads;
 
@@ -268,6 +272,7 @@ static int
 work_group_scheduler (kernel_run_command *k,
                       struct pool_thread_data *thread_data)
 {
+  //printf("work_group_scheduler\n");
   pocl_kernel_metadata_t *meta = k->kernel->meta;
 
   const size_t num_args = meta->num_args + meta->num_locals + 1;
@@ -298,6 +303,32 @@ work_group_scheduler (kernel_run_command *k,
   assert (pc.printf_buffer_capacity > 0);
   assert (pc.printf_buffer_position != NULL);
 
+
+  //uint32_t testi = 23;
+  //pc.testi = testi;
+
+  printf("Setting taulukko values\n");
+  // Tämä ei toimi
+  // laske paljonko vie tilaa ja lisää mallocin
+  //unsigned int taulukko[pc.num_groups[0]*pc.num_groups[1]*pc.num_groups[2]];
+  unsigned int taulukko[10];
+  taulukko[0] = 1;
+  taulukko[1] = 2;
+  taulukko[2] = 44;
+  taulukko[3] = 32;
+  taulukko[4] = 11;
+
+  thread_data->table1 = taulukko;
+
+  printf("workdims: (%d,%d,%d)\n",pc.num_groups[0],pc.num_groups[1],pc.num_groups[2]);
+  printf("localdims: (%d,%d,%d)\n", pc.local_size[0],pc.local_size[1],pc.local_size[2]);
+
+  printf("Total number of workitems: %d\n",pc.num_groups[0]*pc.num_groups[1]*pc.num_groups[2]*pc.local_size[0]*pc.local_size[1]*pc.local_size[2]);
+
+
+  //pc.taulukko = taulukko;
+
+
   pocl_cpu_setup_rm_and_ftz (k->device, k->kernel->program);
 
   unsigned slice_size = k->pc.num_groups[0] * k->pc.num_groups[1];
@@ -305,6 +336,7 @@ work_group_scheduler (kernel_run_command *k,
 
   do
     {
+      //printf("starting wg\n");
       if (last_wgs)
         {
           POCL_LOCK (scheduler.wq_lock_fast);
@@ -420,6 +452,9 @@ finalize_kernel_command (struct pool_thread_data *thread_data,
 static kernel_run_command *
 pocl_pthread_prepare_kernel (void *data, _cl_command_node *cmd)
 {
+
+  printf("preparing kernel\n");
+
   kernel_run_command *run_cmd;
   cl_kernel kernel = cmd->command.run.kernel;
   struct pocl_context *pc = &cmd->command.run.pc;
@@ -461,6 +496,7 @@ pocl_pthread_prepare_kernel (void *data, _cl_command_node *cmd)
       return NULL;
     }
 
+  // This mallocs the struct, also pocl_context
   run_cmd = new_kernel_run_command ();
   run_cmd->data = data;
   run_cmd->kernel = kernel;
@@ -589,6 +625,8 @@ check_kernel_queue_for_device (thread_data *td)
 static int
 pthread_scheduler_get_work (thread_data *td)
 {
+
+
   _cl_command_node *cmd = NULL;
   kernel_run_command *run_cmd = NULL;
 
