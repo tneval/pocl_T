@@ -489,6 +489,23 @@ llvm::AllocaInst *SimpleFallbackImpl::allocateStorage(llvm::IRBuilder<> &entryBl
     llvm::Value *zero = entryBlockBuilder.getInt8(0);
     //llvm::Value *align = entryBlockBuilder.getInt32(4);
     llvm::MaybeAlign maybeAlign(nextExitBlockArray->getAlign().value());
+
+
+    uint64_t ElementSizeBytes = M->getDataLayout().getTypeAllocSize(llvm::Type::getInt64Ty(M->getContext()));
+
+    // Zero the counter arrays.
+    if(WGDynamicLocalSize){
+        llvm::ConstantInt *typeSizeVal = llvm::ConstantInt::get(M->getContext(), llvm::APInt(64, ElementSizeBytes));
+        llvm::Value *totalSize = entryBlockBuilder.CreateMul(nWI, typeSizeVal);
+        entryBlockBuilder.CreateMemSet(nextExitBlockArray, zero, totalSize, maybeAlign);
+    }else{
+        entryBlockBuilder.CreateMemSet(nextExitBlockArray, zero, WGLocalSizeX*WGLocalSizeY*WGLocalSizeZ*ElementSizeBytes, maybeAlign);
+
+    }
+
+
+
+
     entryBlockBuilder.CreateMemSet(nextExitBlockArray, zero, nWI, maybeAlign);
    
     return nextExitBlockArray;
@@ -934,7 +951,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
                 barrierBlockBuilder.CreateCall(barrierReached,{local_x, local_y, local_z,wgStateAlloc});
             }else if(SubgroupBarrier::hasSGBarrier(BBlock)){
                 llvm::Function *sgbarrierReached = M->getFunction("__pocl_sg_barrier_reached");
-                barrierBlockBuilder.CreateCall(sgbarrierReached,{local_x, local_y, local_z});
+                barrierBlockBuilder.CreateCall(sgbarrierReached,{local_x, local_y, local_z, wgStateAlloc});
             }
 
             // Add branch to dispatcher
@@ -967,16 +984,21 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::Value *zSize = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),WGLocalSizeZ);
 
     // X 
-    llvm::Value *loc_x = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI ,xSize, "loc_id_x");
-
+    llvm::Value *loc_x = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI ,LocalSizeValues[0], "loc_id_x");
+    
+    llvm::Value *xtimesy = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::Mul, LocalSizeValues[0], LocalSizeValues[1]);
+    
+   
     // Y
     unsigned int mult_xy_sizes = WGLocalSizeX*WGLocalSizeY;
     llvm::Value *xy_mult = llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()),mult_xy_sizes);
-    llvm::Value *loc_y_tmp = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI,xy_mult, "loc_id_y_tmp");
-    llvm::Value *loc_y = bBuilder.CreateBinOp(llvm::Instruction::UDiv, loc_y_tmp, xSize, "loc_id_y");
+    llvm::Value *loc_y_tmp = bBuilder.CreateBinOp(llvm::Instruction::BinaryOps::SRem, linearWI,xtimesy, "loc_id_y_tmp");
+    
+    
+    llvm::Value *loc_y = bBuilder.CreateBinOp(llvm::Instruction::UDiv, loc_y_tmp, LocalSizeValues[0], "loc_id_y");
 
     // Z
-    llvm::Value *loc_z = bBuilder.CreateBinOp(llvm::Instruction::UDiv, linearWI, xy_mult, "loc_id_z");
+    llvm::Value *loc_z = bBuilder.CreateBinOp(llvm::Instruction::UDiv, linearWI, xtimesy, "loc_id_z");
 
 
     // Store new ids
@@ -989,7 +1011,9 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::Value* z_gid = bBuilder.CreateLoad(ST, GroupIdGlobals[2], "group_id_z");
 
 
-    llvm::Value* multX = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeX, false), x_gid, "mulx");
+    llvm::Value* multX = bBuilder.CreateMul(LocalSizeValues[0], x_gid, "mulx");
+
+
     llvm::Value* gid_x = bBuilder.CreateAdd(multX, loc_x, "gid_x");
     llvm::GlobalVariable *offsetXPtr =
       llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_global_offset_x", ST));
@@ -997,14 +1021,14 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::Value* gid_x_off= bBuilder.CreateAdd(gid_x, offset_x, "gid_x_off");
 
 
-    llvm::Value* multY = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeY, false), y_gid, "muly");
+    llvm::Value* multY = bBuilder.CreateMul(LocalSizeValues[1], y_gid, "muly");
     llvm::Value* gid_y = bBuilder.CreateAdd(multY, loc_y, "gid_y");
     llvm::GlobalVariable *offsetYPtr =
       llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_global_offset_y", ST));
     llvm::Value* offset_y = bBuilder.CreateLoad(ST, offsetYPtr,"offset_y");
     llvm::Value* gid_y_off= bBuilder.CreateAdd(gid_y, offset_y, "gid_y_off");
 
-    llvm::Value* multZ = bBuilder.CreateMul(llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeZ, false), z_gid, "mulz");
+    llvm::Value* multZ = bBuilder.CreateMul(LocalSizeValues[2],z_gid, "mulz");
     llvm::Value* gid_z = bBuilder.CreateAdd(multZ, loc_z, "gid_z");
     llvm::GlobalVariable *offsetZPtr =
       llvm::cast<llvm::GlobalVariable>(M->getOrInsertGlobal("_global_offset_z", ST));
@@ -1077,8 +1101,8 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     
     // added 5.12; trying to fix domination issue 
     fixUndominatedVariableUses(DT, Func);
-
-    M->dump();
+    // Commented out 13.1.2025
+    //M->dump();
 
     return true;
 

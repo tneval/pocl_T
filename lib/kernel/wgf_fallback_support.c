@@ -1,24 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
-
-
-// WG dimensions
-static unsigned int local_size_x;
-static unsigned int local_size_y;
-static unsigned int local_size_z;
-
-
-/* typedef struct {
-    unsigned int local_size_x;
-    unsigned int local_size_y;
-    unsigned int local_size_z;
-    unsigned int sub_group_size;
-    unsigned int n_subgroups;
-    int waiting_count;
-    int sg_barriers_active;
-    unsigned int sg_wi_counter[4096];
-    unsigned int sg_barrier_status[4096];
-} WGState; */
 
 // This can be referenced from kernel because its visibility is global
 typedef struct {
@@ -34,40 +14,10 @@ typedef struct {
     unsigned long *sg_wi_counter;
     unsigned long *sg_barrier_counter;
 } wgState;
-
-
-
-// Subgroup size
-static unsigned int sub_group_size;
-
-// Number of subgroups
-static unsigned int n_subgroups;
-
-static int waiting_count;
-
-static int sg_barriers_active;
-
-
-static unsigned int sg_wi_counter[4096];
-static unsigned int sg_barrier_status[4096];
-
-
-// 
+ 
 
 //#define DBG
 
-/* 
-void __pocl_context_test(unsigned int* ctx_val)
-{
-    printf("Context value: %d, %d, %d, %d, %d\n",ctx_val[0],ctx_val[1],ctx_val[2],ctx_val[3],ctx_val[4]);
-
-    ctx_val[0]++;
-    ctx_val[1]++;
-    ctx_val[2]++;
-    ctx_val[3]++;
-    ctx_val[4]++;
-}
- */
 
 void __pocl_context_test(wgState *wgState,unsigned long *sg_wi_counter, unsigned long *sg_barrier_counter)
 {  
@@ -85,9 +35,6 @@ void __pocl_context_test(wgState *wgState,unsigned long *sg_wi_counter, unsigned
 void __pocl_sched_init(wgState *wgState, unsigned long *sg_wi_counter, unsigned long *sg_barrier_counter)
 {
    
-#ifdef DBG
-    //printf("SCHEDULER>> init called %ld\t%ld\t%ld\t%ld\n",sg_size,x_size,y_size,z_size);
-#endif
 
     wgState->n_subgroups = (wgState->local_size_x*wgState->local_size_y*wgState->local_size_z)/wgState->subgroup_size;
     wgState->waiting_count = 0;
@@ -95,7 +42,11 @@ void __pocl_sched_init(wgState *wgState, unsigned long *sg_wi_counter, unsigned 
 
     wgState->sg_wi_counter = sg_wi_counter;
     wgState->sg_barrier_counter = sg_barrier_counter;
-   
+
+#ifdef DBG
+ 
+
+
     printf("struct (init): %d, %d, %d, %d\n", wgState->local_size_x, wgState->local_size_y, wgState->local_size_z, wgState->subgroup_size);
 
     printf("sg_wi_counter: ");
@@ -108,17 +59,16 @@ void __pocl_sched_init(wgState *wgState, unsigned long *sg_wi_counter, unsigned 
     }
     printf("\n");
 
-
     printf("sgsize: %d, n_subgroups: %d, waiting_count: %d, sg_barriers_active: %d\n", wgState->subgroup_size,wgState->n_subgroups, wgState->waiting_count, wgState->sg_barriers_active);
+#endif
 
 }
 
 
-
-
-
 void __pocl_next_jump(long idx){
-    //printf("jumping next to index: %d\n",idx);
+#ifdef DBG
+    printf("jumping next to index: %d\n",idx);
+#endif
 }
 
 
@@ -128,13 +78,13 @@ static void resolve_barriers(wgState *wgState)
 
 #ifdef DBG
     printf("SCHEDULER>> BEFORE resolving barriers\n");
-    printf("SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",waiting_count,sg_barriers_active);
+    printf("SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",wgState->waiting_count,wgState->sg_barriers_active);
 
-    for(int i = 0; i<n_subgroups; i++){
-        printf("sg_wi_counter[%d]: %d\t",i,sg_wi_counter[i]);
+    for(int i = 0; i<wgState->n_subgroups; i++){
+        printf("sg_wi_counter[%d]: %d\t",i,wgState->sg_wi_counter[i]);
     }
-    for(int i = 0; i<n_subgroups; i++){
-        printf("sg_barrier_status[%d]: %d\t",i,sg_barrier_status[i]);
+    for(int i = 0; i<wgState->n_subgroups; i++){
+        printf("sg_barrier_status[%d]: %d\t",i,wgState->sg_barrier_counter[i]);
     }
     printf("\n");
 
@@ -145,7 +95,7 @@ static void resolve_barriers(wgState *wgState)
         
         //Resolve wg barrier when all wis have reached it
         // zero the counters
-        if(wgState->waiting_count == wgState->subgroup_size*n_subgroups){
+        if(wgState->waiting_count == wgState->subgroup_size*wgState->n_subgroups){
             
             for(int i = 0; i<wgState->n_subgroups; i++){
                 wgState->sg_wi_counter[i] = 0;
@@ -177,13 +127,13 @@ static void resolve_barriers(wgState *wgState)
 
 #ifdef DBG
     printf("SCHEDULER>> AFTER resolving barriers\n");
-    printf("SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",waiting_count,sg_barriers_active);
+    printf("SCHEDULER>> waiting_count: %d\tsg_barriers_active: %d\t",wgState->waiting_count,wgState->sg_barriers_active);
 
-    for(int i = 0; i<n_subgroups; i++){
-        printf("sg_wi_counter[%d]: %d\t",i,sg_wi_counter[i]);
+    for(int i = 0; i<wgState->n_subgroups; i++){
+        printf("sg_wi_counter[%d]: %d\t",i,wgState->sg_wi_counter[i]);
     }
-    for(int i = 0; i<n_subgroups; i++){
-        printf("sg_barrier_status[%d]: %d\t",i,sg_barrier_status[i]);
+    for(int i = 0; i<wgState->n_subgroups; i++){
+        printf("sg_barrier_status[%d]: %d\t",i,wgState->sg_barrier_counter[i]);
     }
     printf("\n");
 #endif
@@ -193,11 +143,11 @@ static void resolve_barriers(wgState *wgState)
 
 
 
-static void print_barrier_status(){
+static void print_barrier_status(wgState *wgState){
 
-    for(int i = 0; i < n_subgroups; i++){
+    for(int i = 0; i < wgState->n_subgroups; i++){
         
-        printf(" %d ", sg_wi_counter[i]);
+        printf(" %d ", wgState->sg_wi_counter[i]);
     }
     printf("\n");
 
@@ -209,9 +159,9 @@ void __pocl_barrier_reached(long local_id_x, long local_id_y, long local_id_z, w
 {
 
     // Linearize wg id
-    unsigned int linearId = ((local_id_z*local_size_y*local_size_x)+(local_id_y*local_size_x)+local_id_x);
+    unsigned int linearId = ((local_id_z*wgState->local_size_y*wgState->local_size_x)+(local_id_y*wgState->local_size_x)+local_id_x);
 
-    unsigned int sg_id = linearId / sub_group_size;
+    unsigned int sg_id = linearId / wgState->subgroup_size;
     unsigned int sg_local_id = linearId % wgState->subgroup_size;
 
     wgState->waiting_count++;
@@ -221,7 +171,7 @@ void __pocl_barrier_reached(long local_id_x, long local_id_y, long local_id_z, w
 #ifdef DBG
     printf("SCHEDULER>> BARRIER REACHED\n");
     printf("SCHEDULER>> linearID: %d\tlocal_id_x: %d\tlocal_id_y: %d\tlocal_id_z: %d\tsg_id: %d\t sg_local_id: %d\n",linearId,local_id_x,local_id_y,local_id_z,sg_id, sg_local_id);
-    print_barrier_status();
+    print_barrier_status(wgState);
 #endif
     
 
@@ -230,29 +180,29 @@ void __pocl_barrier_reached(long local_id_x, long local_id_y, long local_id_z, w
 }
 
 
-void __pocl_sg_barrier_reached(long local_id_x, long local_id_y, long local_id_z)
+void __pocl_sg_barrier_reached(long local_id_x, long local_id_y, long local_id_z, wgState *wgState)
 {
 
     // Linearize wg id
-    unsigned int linearId = ((local_id_z*local_size_y*local_size_x)+(local_id_y*local_size_x)+local_id_x);
+    unsigned int linearId = ((local_id_z*wgState->local_size_y*wgState->local_size_x)+(local_id_y*wgState->local_size_x)+local_id_x);
 
-    int sg_id = linearId / sub_group_size;
-    int sg_local_id = linearId % sub_group_size;
+    int sg_id = linearId / wgState->subgroup_size;
+    int sg_local_id = linearId % wgState->subgroup_size;
 
 
     // Only increase the sg barrier counter when the first wi of the subgroup comes in
-    if(sg_wi_counter[sg_id] == 0){
-        sg_barriers_active++;
-        sg_barrier_status[sg_id]++;
+    if(wgState->sg_wi_counter[sg_id] == 0){
+        wgState->sg_barriers_active++;
+        wgState->sg_barrier_counter[sg_id]++;
     }
     
-    sg_wi_counter[sg_id]++;
-    waiting_count++;
+    wgState->sg_wi_counter[sg_id]++;
+    wgState->waiting_count++;
    
 #ifdef DBG
     printf("SCHEDULER>> SG BARRIER REACHED\n");
     printf("SCHEDULER>> sg_id: %d\t sg_local_id: %d\n",sg_id, sg_local_id);
-    print_barrier_status();
+    print_barrier_status(wgState);
     
 #endif
 
@@ -290,7 +240,7 @@ long __pocl_sched_work_item(wgState *wgState)
 
 void __pocl_sched_clean()
 {
-    printf("SCHEDULER>> clean called\n");
+   
 #ifdef DBG
     printf("SCHEDULER>> clean called\n");
 #endif

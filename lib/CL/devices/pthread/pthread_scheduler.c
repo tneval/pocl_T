@@ -436,7 +436,7 @@ static kernel_run_command *
 pocl_pthread_prepare_kernel (void *data, _cl_command_node *cmd)
 {
 
-  printf("preparing kernel\n");
+  //printf("preparing kernel\n");
 
   kernel_run_command *run_cmd;
   cl_kernel kernel = cmd->command.run.kernel;

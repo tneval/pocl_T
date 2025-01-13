@@ -482,7 +482,8 @@ bool WorkgroupImpl::runOnModule(Module &M, llvm::FunctionAnalysisManager &FAM) {
 #endif
   }
 
-  M.dump();
+  // Commented out 13.1.2025
+  //M.dump();
 
   return true;
 }
@@ -601,24 +602,24 @@ llvm::Value *WorkgroupImpl::createLoadFromContext(IRBuilder<> &Builder,
   llvm::LoadInst *Load = nullptr;
   if (SizeTWidth == 64) {
     if (FieldIndex == -1){
-    std::cout <<"a\n";
+    
       Ptr = Builder.CreateConstGEP1_64(
           GEPType,
           GEP, 0);
     }else{
-    std::cout << "b\n";
+   
       Ptr = Builder.CreateConstGEP2_64(
           GEPType,
           GEP, 0, FieldIndex);
     }
   } else {
     if (FieldIndex == -1){
-      std::cout << "c\n";
+     
       Ptr = Builder.CreateConstGEP1_32(
           GEPType,
           GEP, 0);
     }else{
-      std::cout << "d\n";
+     
       Ptr = Builder.CreateConstGEP2_32(
           GEPType,
           GEP, 0, FieldIndex);
@@ -637,8 +638,7 @@ llvm::Value *WorkgroupImpl::createLoadFromContext(IRBuilder<> &Builder,
   
   Load = Builder.CreateLoad(FinalType, Ptr, Name.c_str());
   addRangeMetadataForPCField(Load, StructFieldIndex, FieldIndex);
-  Load->print(llvm::outs());
-  llvm::outs() << "\n";
+  
   return Load;
 }
 
@@ -899,17 +899,17 @@ Function *WorkgroupImpl::createWrapper(Function *F,
 
   SmallVector<Value *, 8> FuncArgs;
   Function::arg_iterator ai = L->arg_begin();
-  std::cout << "HEP\n";
+ 
   for (unsigned i = 0, e = F->arg_size(); i != e; ++i) {
-    std::cout << "HEP2\n";
+    
     llvm::Argument &arg = *ai;
-    llvm::outs() << "Argument name: " << arg.getName()<<"\n";
+    
     FuncArgs.push_back(&*ai);
     ++ai;
   }
 
   ContextArg = &*(ai++);
-      llvm::outs() << "Argument name: " << ContextArg->getName()<<"\n";
+      
 
   GroupIdArgs.resize(3);
   GroupIdArgs[0] = &*(ai++);
@@ -993,15 +993,12 @@ std::vector<llvm::Value *> WorkgroupImpl::globalHandlesToContextStructLoads(
   std::vector<Value*> StructLoads(GlobalHandleNames.size());
   for (size_t i = 0; i < GlobalHandleNames.size(); ++i) {
     if (M->getGlobalVariable(GlobalHandleNames.at(i)) == nullptr) {
-      std::cout << GlobalHandleNames.at(i) << " not found\n";
       StructLoads[i] = nullptr;
       continue;
     }
     StructLoads[i] = createLoadFromContext(
         Builder, StructFieldIndex, GlobalHandleNames.size() == 1 ? -1 : i);
     
-    StructLoads[i]->print(llvm::outs());
-    llvm::outs() << "\n";
   }
   return StructLoads;
 }
@@ -1184,13 +1181,7 @@ void WorkgroupImpl::privatizeContext(Function *F) {
             {"_global_offset_x", "_global_offset_y", "_global_offset_z"},
             PC_GLOBAL_OFFSET));
   }
-  /////////////////////
-  std::cout << "privatizing _testi\n";
-  privatizeGlobals(F, Builder, {"_testi"}, globalHandlesToContextStructLoads(Builder,{"_testi"},PC_TESTI));
-  std::cout << "privatizing _taulukko\n";
-  //privatizeGlobals(F, Builder, {"_taulukko1"}, globalHandlesToContextStructLoads(Builder, {"_taulukko1"}, PC_TABLE1));
-  privatizeGlobals(F, Builder, {"_taulukko1"}, {createLoadFromContext(Builder, PC_TABLE1, -1, "_taulukko1")});
-  //////////////////////////////////
+
   privatizeGlobals(
     F, Builder, {"_work_dim"},
     globalHandlesToContextStructLoads(Builder, {"_work_dim"}, PC_WORK_DIM));
