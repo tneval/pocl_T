@@ -304,29 +304,12 @@ work_group_scheduler (kernel_run_command *k,
   assert (pc.printf_buffer_position != NULL);
 
 
-  //uint32_t testi = 23;
-  //pc.testi = testi;
-
-  printf("Setting taulukko values\n");
-  // Tämä ei toimi
-  // laske paljonko vie tilaa ja lisää mallocin
-  //unsigned int taulukko[pc.num_groups[0]*pc.num_groups[1]*pc.num_groups[2]];
-  unsigned int taulukko[10];
-  taulukko[0] = 1;
-  taulukko[1] = 2;
-  taulukko[2] = 44;
-  taulukko[3] = 32;
-  taulukko[4] = 11;
-
-  thread_data->table1 = taulukko;
-
-  printf("workdims: (%d,%d,%d)\n",pc.num_groups[0],pc.num_groups[1],pc.num_groups[2]);
+  /* printf("workdims: (%d,%d,%d)\n",pc.num_groups[0],pc.num_groups[1],pc.num_groups[2]);
   printf("localdims: (%d,%d,%d)\n", pc.local_size[0],pc.local_size[1],pc.local_size[2]);
 
   printf("Total number of workitems: %d\n",pc.num_groups[0]*pc.num_groups[1]*pc.num_groups[2]*pc.local_size[0]*pc.local_size[1]*pc.local_size[2]);
+ */
 
-
-  //pc.taulukko = taulukko;
 
 
   pocl_cpu_setup_rm_and_ftz (k->device, k->kernel->program);

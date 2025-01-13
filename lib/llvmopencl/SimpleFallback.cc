@@ -8,7 +8,7 @@
 #include "KernelCompilerUtils.h"
 
 #include <llvm/IR/Verifier.h>
-
+#include <llvm/IR/DataLayout.h>
 #include "Barrier.h"
 #include "SubgroupBarrier.h"
 
@@ -457,8 +457,9 @@ llvm::Value *SimpleFallbackImpl::getNumberOfWIs(llvm::IRBuilder<> &Builder){
         LocalSizeValues[0] = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeX, false);
         LocalSizeValues[1] = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeY, false);
         LocalSizeValues[2] = llvm::ConstantInt::get(llvm::Type::getInt64Ty(F->getContext()), WGLocalSizeZ, false);
-        nWI = llvm::ConstantInt::get(ST,WGLocalSizeX * WGLocalSizeY * WGLocalSizeZ*8);
-        
+        //nWI = llvm::ConstantInt::get(ST,WGLocalSizeX * WGLocalSizeY * WGLocalSizeZ*8);
+        nWI = llvm::ConstantInt::get(ST,WGLocalSizeX * WGLocalSizeY * WGLocalSizeZ);
+
     }    
     
     return nWI;
@@ -489,7 +490,6 @@ llvm::AllocaInst *SimpleFallbackImpl::allocateStorage(llvm::IRBuilder<> &entryBl
     //llvm::Value *align = entryBlockBuilder.getInt32(4);
     llvm::MaybeAlign maybeAlign(nextExitBlockArray->getAlign().value());
     entryBlockBuilder.CreateMemSet(nextExitBlockArray, zero, nWI, maybeAlign);
-
    
     return nextExitBlockArray;
 
@@ -541,10 +541,28 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     // Also initializes to zero
     llvm::AllocaInst *nextJumpIndices = allocateStorage(entryBlockBuilder, "jump_indices", nWI);
     
-    llvm::AllocaInst *barrier_counter = allocateStorage(entryBlockBuilder, "barrier_counters", nWI);
+    // NOTE: These use alignment of 8, maybe use 128?
+    llvm::AllocaInst* sg_wi_counter = entryBlockBuilder.CreateAlloca(llvm::Type::getInt64Ty(M->getContext()),nWI,"_sg_wi_counter");
+    llvm::AllocaInst* sg_barrier_counter = entryBlockBuilder.CreateAlloca(llvm::Type::getInt64Ty(M->getContext()),nWI,"_sg_barrier_counter");
 
-    llvm::AllocaInst *barrier_counter2 = allocateStorage(entryBlockBuilder, "barrier_counters2", nWI);
-    
+
+    llvm::Value *zero = entryBlockBuilder.getInt8(0);
+    //llvm::Value *align = entryBlockBuilder.getInt32(4);
+    llvm::MaybeAlign maybeAlign(sg_wi_counter->getAlign().value());
+
+    uint64_t ElementSizeBytes = M->getDataLayout().getTypeAllocSize(llvm::Type::getInt64Ty(M->getContext()));
+
+    // Zero the counter arrays.
+    if(WGDynamicLocalSize){
+        llvm::ConstantInt *typeSizeVal = llvm::ConstantInt::get(M->getContext(), llvm::APInt(64, ElementSizeBytes));
+        llvm::Value *totalSize = entryBlockBuilder.CreateMul(nWI, typeSizeVal);
+        entryBlockBuilder.CreateMemSet(sg_wi_counter, zero, totalSize, maybeAlign);
+        entryBlockBuilder.CreateMemSet(sg_barrier_counter, zero, totalSize, maybeAlign);
+    }else{
+        entryBlockBuilder.CreateMemSet(sg_wi_counter, zero, WGLocalSizeX*WGLocalSizeY*WGLocalSizeZ*ElementSizeBytes, maybeAlign);
+        entryBlockBuilder.CreateMemSet(sg_barrier_counter, zero, WGLocalSizeX*WGLocalSizeY*WGLocalSizeZ*ElementSizeBytes, maybeAlign);
+
+    }
     //addSchedulerInitCall();
     //////////////////////////////////////////////////////////////////////////////////////////
 
@@ -590,7 +608,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::FunctionCallee freeFunc;
 
     // Use malloc/free only when size is not known compile time
-    if(WGDynamicLocalSize){
+    /* if(WGDynamicLocalSize){
         mallocFunc = M->getOrInsertFunction(
         "malloc", 
         llvm::FunctionType::get(
@@ -608,7 +626,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             false                                     // Not variadic
         )
         );
-    }
+    } */
 
 
 
@@ -627,11 +645,10 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         llvm::Type::getInt64Ty(M->getContext()),
         //sg barriers active
         llvm::Type::getInt64Ty(M->getContext()),
-        // some array
-        //llvm::ArrayType::get(llvm::Type::getInt64Ty(M->getContext()),2),
+        // Counters
         llvm::PointerType::get(llvm::Type::getInt64Ty(M->getContext()), 0),
-        // some value
-        llvm::Type::getInt64Ty(M->getContext())
+        llvm::PointerType::get(llvm::Type::getInt64Ty(M->getContext()), 0),
+       
     };
 
     // Use get instead of create to use the struct declared in scheduler source
@@ -658,14 +675,11 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::Instruction *load_z_size = entryBlockBuilder.CreateLoad(ST, LocalSizeGlobals[2]);
     entryBlockBuilder.CreateStore(load_z_size, state_local_size_z);
 
+
+    // Pointer to sg_size in the struct
     llvm::Value *sg_size = entryBlockBuilder.CreateGEP(wgState, wgStateAlloc, 
     {llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), 0), llvm::ConstantInt::get(llvm::Type::getInt32Ty(M->getContext()), 3)});
 
-
-
-    
-    
-    
 
     //////////////////////////////
 
@@ -703,7 +717,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
         }
     }
 
-    llvm::Value *pointerField = entryBlockBuilder.CreateGEP(
+   /*  llvm::Value *pointerField = entryBlockBuilder.CreateGEP(
             wgState,
             wgStateAlloc,
             {llvm::ConstantInt::get(llvm::Type::getInt64Ty(M->getContext()), 0), // Struct base
@@ -737,13 +751,14 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
         entryBlockBuilder.CreateStore(arrayPtr, pointerField);
     }
+ */
 
 
+    //entryBlockBuilder.CreateCall(ctxFunc, {wgStateAlloc, sg_wi_counter, sg_barrier_counter});
+    //entryBlockBuilder.CreateCall(ctxFunc, {wgStateAlloc, sg_wi_counter, sg_barrier_counter});
 
-    entryBlockBuilder.CreateCall(ctxFunc, {barrier_counter, wgStateAlloc});
 
-
-    lastInst = entryBlockBuilder.CreateCall(schedFuncI, { wgStateAlloc });
+    lastInst = entryBlockBuilder.CreateCall(schedFuncI, { wgStateAlloc, sg_wi_counter, sg_barrier_counter });
     // This will pass the sg size and local size to init function.
     
     
@@ -866,7 +881,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
             newExitBlockBuilder.CreateCall(schedClean);
             
             if(WGDynamicLocalSize){
-                newExitBlockBuilder.CreateCall(freeFunc, {mallocCall});
+                //newExitBlockBuilder.CreateCall(freeFunc, {mallocCall});
             }
             
             newExitBlockBuilder.CreateRetVoid();
@@ -943,7 +958,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     llvm::Function *schedFunc = M->getFunction("__pocl_sched_work_item");
 
     // Retrieve the return value, i.e. WI id
-    llvm::Value *linearWI = bBuilder.CreateCall(schedFunc);
+    llvm::Value *linearWI = bBuilder.CreateCall(schedFunc, {wgStateAlloc});
     linearWI->setName("next_linear_wi");
 
 
