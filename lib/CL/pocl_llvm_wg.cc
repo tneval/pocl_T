@@ -575,12 +575,12 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
     // subcfgformation (for CBS) before workitemloops, as wiloops creates the
     // loops for kernels without barriers, but after the transformation the
     // kernel looks like it has barriers, so subcfg would do its thing.
-    addPass(Passes, "subcfgformation");
+    //addPass(Passes, "subcfgformation");
 
     // subcfgformation before workitemloops, as wiloops creates the loops for
     // kernels without barriers, but after the transformation the kernel looks
     // like it has barriers, so subcfg would do its thing.
-    addPass(Passes, "workitemloops");
+    //addPass(Passes, "workitemloops");
 
 
     addPass(Passes, "simplefallback");
