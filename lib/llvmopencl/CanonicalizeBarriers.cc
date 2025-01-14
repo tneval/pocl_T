@@ -35,6 +35,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 #include "Barrier.h"
+#include "SubgroupBarrier.h"
 #include "CanonicalizeBarriers.h"
 #include "LLVMUtils.h"
 #include "VariableUniformityAnalysis.h"
@@ -131,6 +132,9 @@ static bool processFunction(Function &F, WorkitemHandlerType Handler) {
     for (BasicBlock::iterator i = b->begin(), e = b->end();
          i != e; ++i) {
       if (isa<Barrier>(i)) {
+        Barriers.insert(&*i);
+      }
+      if(isa<SubgroupBarrier>(i)) {
         Barriers.insert(&*i);
       }
     }
