@@ -521,6 +521,9 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     M = Func.getParent();
     F = &Func;
 
+    std::cerr << "BEFORE\n";
+    F->dump();
+
     Initialize(llvm::cast<Kernel>(&Func));
 
     // Initialize pointers to global variables:
@@ -1103,7 +1106,8 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
     fixUndominatedVariableUses(DT, Func);
     // Commented out 13.1.2025
     //M->dump();
-
+    std::cerr << "AFTER\n";
+    F->dump();
     return true;
 
 }
