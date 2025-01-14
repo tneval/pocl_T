@@ -1084,7 +1084,7 @@
 #define get_sub_group_local_id _cl_get_sub_group_local_id
 #define sub_group_ballot _cl_sub_group_ballot
 #define sub_group_broadcast _cl_sub_group_broadcast
-#define sub_group_barrier _cl_sub_group_barrier
+//#define sub_group_barrier _cl_sub_group_barrier
 #define sub_group_any _cl_sub_group_any
 #define sub_group_all _cl_sub_group_all
 #define sub_group_reduce_add _cl_sub_group_reduce_add

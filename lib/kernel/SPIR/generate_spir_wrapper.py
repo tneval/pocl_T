@@ -1508,8 +1508,8 @@ generate_function("get_sub_group_local_id", SIG_TO_LLVM_TYPE_MAP['i'], '', None)
 generate_function("sub_group_ballot", SIG_TO_LLVM_TYPE_MAP['Dv4_i'], '', None, 'i')
 generate_function("sub_group_any", SIG_TO_LLVM_TYPE_MAP['i'], '', None, 'i')
 generate_function("sub_group_all", SIG_TO_LLVM_TYPE_MAP['i'], '', None, 'i')
-generate_function("sub_group_barrier", SIG_TO_LLVM_TYPE_MAP['v'], '', None, 'j')
-generate_function("sub_group_barrier", SIG_TO_LLVM_TYPE_MAP['v'], '', None, 'j', '12memory_scope')
+#generate_function("sub_group_barrier", SIG_TO_LLVM_TYPE_MAP['v'], '', None, 'j')
+#generate_function("sub_group_barrier", SIG_TO_LLVM_TYPE_MAP['v'], '', None, 'j', '12memory_scope')
 
 SUBGROUP_TYPES = ['c', 'h', 's', 't', 'i', 'j', 'l', 'm', 'f', 'd']
 if FP16:

@@ -59,6 +59,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include "pocl_llvm_api.h"
 
 #include "Barrier.h"
+#include "SubgroupBarrier.h"
 #include "EmitPrintf.hh"
 #include "KernelCompilerUtils.h"
 #include "LLVMUtils.h"
@@ -765,6 +766,7 @@ int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
            F->getName() != "printf" && F->getName() != pocl_sampler_handler &&
            !F->getName().starts_with("llvm.") &&
            F->getName() != BARRIER_FUNCTION_NAME &&
+           F->getName() != SGBARRIER_FUNCTION_NAME &&
            F->getName() != "__pocl_work_group_alloca")) {
         Log.append("Cannot find symbol ");
         Log.append(FName.str());
