@@ -27,11 +27,13 @@
 set(C_PROGRAMS_TO_BUILD test_assign_loop_variable_to_privvar_makes_it_local
      test_program_from_binary_with_local_1_1_1
      test_assign_loop_variable_to_privvar_makes_it_local_2
-  test_llvm_segfault_issue_889
+     test_llvm_segfault_issue_889
+     test_issue_1711
 )
 foreach(PROG ${C_PROGRAMS_TO_BUILD})
   add_executable("${PROG}" "${PROG}.c")
   target_link_libraries("${PROG}" ${POCLU_LINK_OPTIONS})
+  add_symlink_to_built_opencl_dynlib("${PROG}")
 endforeach()
 
 
@@ -47,6 +49,7 @@ set(PROGRAMS_TO_BUILD test_barrier_between_for_loops test_early_return
   test_alignment_with_dynamic_wg2 test_alignment_with_dynamic_wg3
   test_issue_893 test_issue_1435 test_builtin_args test_issue_1390
   test_workitem_func_outside_kernel test_program_scope_vars test_issue_1548
+  test_issue_1525
 )
 
 if (MSVC)
@@ -61,6 +64,7 @@ include_directories("${CMAKE_SOURCE_DIR}/lib/CL")
 foreach(PROG ${PROGRAMS_TO_BUILD})
   add_executable("${PROG}" "${PROG}.cpp")
   target_link_libraries("${PROG}" ${POCLU_LINK_OPTIONS})
+  add_symlink_to_built_opencl_dynlib("${PROG}")
 endforeach()
 
 
@@ -77,6 +81,8 @@ add_test_pocl(NAME "regression/test_issue_577" COMMAND "test_issue_577")
 add_test_pocl(NAME "regression/test_issue_757" COMMAND "test_issue_757")
 
 add_test_pocl(NAME "regression/test_issue_1435" COMMAND "test_issue_1435")
+
+add_test_pocl(NAME "regression/test_issue_1525" COMMAND "test_issue_1525" LLVM_FILECHECK "test_issue_1525.fc" WORKITEM_HANDLER "loopvec")
 
 add_test_pocl(NAME "regression/test_workitem_func_outside_kernel" COMMAND "test_workitem_func_outside_kernel")
 
@@ -96,6 +102,10 @@ if(ENABLE_HOST_CPU_DEVICES AND ENABLE_LEVEL0)
 endif()
 
 add_test_pocl(NAME "regression/test_llvm_segfault_issue_889" COMMAND "test_llvm_segfault_issue_889")
+
+if(ENABLE_SPIRV)
+add_test_pocl(NAME "regression/test_issue_1711" COMMAND "test_issue_1711")
+endif()
 
 add_test_pocl(NAME "regression/test_issue_893" COMMAND "test_issue_893")
 
@@ -414,3 +424,4 @@ if(LLVM_VERSION_MAJOR EQUAL 14)
     "regression/test_alignment_with_dynamic_wg_225_cbs"
     PROPERTIES DISABLED 1)
 endif()
+

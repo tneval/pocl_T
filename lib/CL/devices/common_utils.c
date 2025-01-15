@@ -265,6 +265,12 @@ pocl_cpu_init_common (cl_device_id device)
   device->llvm_cpu = OCL_KERNEL_TARGET_CPU;
   if (device->llvm_cpu == NULL)
     device->llvm_cpu = pocl_get_llvm_cpu_name ();
+
+#ifndef ENABLE_SIGFPE_HANDLER
+  if (strstr (OCL_KERNEL_TARGET, "x86") != NULL)
+    device->run_sanitize_divrem_pass = CL_TRUE;
+#endif
+
 #endif
 
   pocl_init_default_device_infos (device, HOST_DEVICE_EXTENSIONS);
@@ -357,14 +363,14 @@ pocl_cpu_init_common (cl_device_id device)
           | CL_DEVICE_LOCAL_FP_ATOMIC_ADD_EXT
           | CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT;
       device->features
-        = HOST_DEVICE_FEATURES_30 " __opencl_c_ext_fp32_global_atomic_add "
-                                  "__opencl_c_ext_fp64_global_atomic_add"
-                                  " __opencl_c_ext_fp32_local_atomic_add "
-                                  "__opencl_c_ext_fp64_local_atomic_add"
-                                  " __opencl_c_ext_fp32_global_atomic_min_max "
-                                  "__opencl_c_ext_fp64_global_atomic_min_max"
-                                  " __opencl_c_ext_fp32_local_atomic_min_max "
-                                  "__opencl_c_ext_fp64_local_atomic_min_max";
+        = HOST_DEVICE_FEATURES_30 " __opencl_c_ext_fp32_global_atomic_add"
+                                  " __opencl_c_ext_fp64_global_atomic_add"
+                                  " __opencl_c_ext_fp32_local_atomic_add"
+                                  " __opencl_c_ext_fp64_local_atomic_add"
+                                  " __opencl_c_ext_fp32_global_atomic_min_max"
+                                  " __opencl_c_ext_fp64_global_atomic_min_max"
+                                  " __opencl_c_ext_fp32_local_atomic_min_max"
+                                  " __opencl_c_ext_fp64_local_atomic_min_max";
     }
 
   pocl_setup_opencl_c_with_version (device, CL_TRUE);
@@ -889,27 +895,6 @@ pocl_cpu_build_defined_builtin (cl_program program, cl_uint device_i)
   POCL_RETURN_ERROR (
     CL_BUILD_PROGRAM_FAILURE,
     "The CPU driver has not been compiled with support for DBKs\n");
-}
-
-/**
- * Get the device memory pointer of the supplied pocl argument.
- *
- * \param global_mem_id [in] This is needed to get the device specific pointer.
- * \return NULL if arg->value is NULL and otherwise the requested pointer.
- */
-void *
-pocl_cpu_get_ptr (struct pocl_argument *arg, unsigned global_mem_id)
-{
-  if (arg->value == NULL)
-    return NULL;
-
-  if (arg->is_raw_ptr)
-    return *(void **)arg->value;
-
-  cl_mem mem = *(cl_mem *)(arg->value);
-  char *ptr = (char *)(mem->device_ptrs[global_mem_id].mem_ptr);
-  ptr += arg->offset;
-  return (void *)ptr;
 }
 
 #ifdef HAVE_LIBXSMM

@@ -594,7 +594,7 @@ static void handleDeviceSidePrintf(
 
   // C promotion of float -> double only if device supports double
   if (ClDev->double_fp_config == 0) {
-    PFlags.ArgPromotionFloat = false;
+    PFlags.ArgPromotionFP64 = false;
   }
   // big endian support is not implemented at all currently
   if (!ClDev->endian_little) {
@@ -694,12 +694,15 @@ int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
 
   // Inspect the program, find undefined functions
   for (FI = Program->begin(), FE = Program->end(); FI != FE; FI++) {
+    // Do not link in work-item functions when we can expand all the
+    // calls by the compiler.
+    if (!ClDev->spmd && isWorkitemFunctionWithOnlyCompilerExpandableCalls(*FI))
+      continue;
     if (FI->isDeclaration()) {
       DB_PRINT("Pre-link: %s is not defined\n", fi->getName().data());
       DeclaredFunctions.insert(FI->getName());
       continue;
     }
-
     // anonymous functions have no name, which breaks the algorithm later
     // when it searches for undefined functions in the kernel library.
     // assign a name here, this should be made unique by setName()
@@ -758,6 +761,9 @@ int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
     for (auto &DeclIter : DeclaredFunctions) {
       llvm::StringRef FName = DeclIter.getKey();
       Function *F = Program->getFunction(FName);
+
+      if (!ClDev->spmd && isWorkitemFunctionWithOnlyCompilerExpandableCalls(*F))
+        continue;
 
       if ((F == NULL) ||
           (F->isDeclaration() &&

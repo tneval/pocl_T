@@ -577,7 +577,7 @@ llvm::AllocaInst *WorkitemHandler::createAlignedAndPaddedContextAlloca(
 #ifdef DEBUG_WORK_ITEM_LOOPS
     std::cerr << "### VariableDebugMeta :  ";
     VariableDebugMeta->dump();
-    std::cerr << "### sizeBits :  " << sizeBits << "  alignBits: " << alignBits
+    std::cerr << "### sizeBits :  " << SizeBits << "  alignBits: " << AlignBits
               << "\n";
 #endif
 
@@ -787,7 +787,10 @@ void WorkitemHandler::handleWorkitemFunctions() {
                                        UE = Call->use_end();
              UI != UE;) {
           llvm::Instruction *User = cast<Instruction>(UI->getUser());
-          IRBuilder<> Builder(User);
+          llvm::Instruction *InsertBefore = User;
+          if (isa<PHINode>(InsertBefore))
+            InsertBefore = Call;
+          IRBuilder<> Builder(InsertBefore);
           llvm::Instruction *Replacement = nullptr;
           if (Callee->getName() == GID_BUILTIN_NAME)
             Replacement = Builder.CreateLoad(ST, GlobalIdGlobals[Dim]);
@@ -796,7 +799,7 @@ void WorkitemHandler::handleWorkitemFunctions() {
           else if (Callee->getName() == LS_BUILTIN_NAME)
             Replacement = Builder.CreateLoad(ST, LocalSizeGlobals[Dim]);
           else if (Callee->getName() == LID_BUILTIN_NAME)
-            Replacement = getLocalIdInRegion(User, Dim);
+            Replacement = getLocalIdInRegion(InsertBefore, Dim);
           else if (Callee->getName() == GS_BUILTIN_NAME)
             Replacement = getGlobalSize(Dim);
           User->replaceUsesOfWith(Call, Replacement);

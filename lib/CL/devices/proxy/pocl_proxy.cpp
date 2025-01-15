@@ -32,9 +32,6 @@
 #include "pocl_proxy.hpp"
 
 #include <assert.h>
-#if !defined(__FreeBSD__)
-#include <alloca.h>
-#endif
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -52,9 +49,7 @@
 #include "pocl_util.h"
 #include "spirv_parser.hh"
 #include "utlist.h"
-#include <CL/cl.h>
 #include <CL/cl_egl.h>
-#include <CL/cl_ext.h>
 
 #ifdef ENABLE_ICD
 #error This driver cannot be built when pocl is to be linked against ICD
@@ -1402,7 +1397,9 @@ pocl_proxy_setup_metadata (cl_device_id device, cl_program program,
   proxy_device_data_t *d = (proxy_device_data_t *)device->data;
   cl_program proxy_prog = (cl_program)program->data[program_device_i];
 
-  if (!(d->backend->provides_metadata || d->backend->supports_il))
+  // Return if there is no metadata and we are not building using a binary.
+  if (!(d->backend->provides_metadata ||
+      (d->backend->supports_il && program->program_il_size > 0)))
     return 0;
 
   assert(program->kernel_meta == NULL);

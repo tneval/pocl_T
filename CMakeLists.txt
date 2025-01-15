@@ -328,13 +328,15 @@ option(ENABLE_REMOTE_ADVERTISEMENT_AVAHI "Enable remote server advertisement usi
 
 option(ENABLE_REMOTE_ADVERTISEMENT_DHT "Enable remote server advertisement using DHT" OFF)
 
-if (ENABLE_PROXY_DEVICE)
+if (ENABLE_PROXY_DEVICE OR MSVC)
   set(VISIBILITY_HIDDEN_DEFAULT OFF)
 else()
   set(VISIBILITY_HIDDEN_DEFAULT ON)
 endif()
 option(VISIBILITY_HIDDEN "Build with -fvisibility=hidden -fvisibility-inlines-hidden" ${VISIBILITY_HIDDEN_DEFAULT})
-if(VISIBILITY_HIDDEN)
+
+if(VISIBILITY_HIDDEN AND NOT MSVC)
+  # MSVC ignores the following options and spams warnings about them.
   add_compile_options(-fvisibility=hidden)
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fvisibility-inlines-hidden>)
 endif()
@@ -384,10 +386,6 @@ option(RENAME_POCL "Rename PoCL's OpenCL functions to PO<ocl_function>. Allows a
 
 
 ##########################################################
-
-if(MSVC AND BUILD_SHARED_LIBS)
-  message(FATAL_ERROR "Building shared libraries are not supported on MSVC yet!")
-endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
   set(HOST_DEVICE_ADDRESS_BITS 64)
@@ -540,6 +538,14 @@ endif()
 ######################################################################################
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+include(pocl_utils)
+
+if(WIN32 AND NOT ENABLE_ICD AND BUILD_SHARED_LIBS)
+  # To have executables link to PoCL built OpenCL.dll instead of a system one
+  # we resort to symlinks which require elevated permissions or developer mode
+  # enabled.
+  pocl_assert_symlinks_works()
+endif()
 
 option(HARDENING_ENABLE "Enable hardening against various attacks. May worsen performance" OFF)
 if(HARDENING_ENABLE)
@@ -734,10 +740,14 @@ else()
 
 endif()
 
-if(UNIX AND (CMAKE_SYSTEM_NAME MATCHES "Linux") AND ENABLE_HOST_CPU_DEVICES AND (X86_64 OR I386))
-  set(ENABLE_SIGNAL_HANDLERS ON CACHE INTERNAL "enable signal handlers" FORCE)
+# SIGFPE and SIGUSR2
+if(UNIX AND (CMAKE_SYSTEM_NAME MATCHES "Linux"))
+  # this is now handled by a LLVM pass
+  option(ENABLE_SIGFPE_HANDLER "enable SIGFPE signal handler" OFF)
+  option(ENABLE_SIGUSR2_HANDLER "enable SIGUSR2 signal handler" ON)
 else()
-  set(ENABLE_SIGNAL_HANDLERS OFF CACHE INTERNAL "enable signal handlers" FORCE)
+  set(ENABLE_SIGFPE_HANDLER OFF CACHE INTERNAL "enable SIGFPE signal handler" FORCE)
+  set(ENABLE_SIGUSR2_HANDLER OFF CACHE INTERNAL "enable SIGUSR2 signal handler" FORCE)
 endif()
 
 ######################################################################################
@@ -1250,7 +1260,7 @@ if(ENABLE_HOST_CPU_DEVICES AND NOT ENABLE_CONFORMANCE)
     message(STATUS "libjpeg-turbo v3.0.0+ not found, disabled")
   endif()
 
-  find_package(OpenCV COMPONENTS dnn)
+  find_package(OpenCV QUIET COMPONENTS dnn)
   set(HAVE_OPENCV ${OpenCV_FOUND})
   if(NOT ${HAVE_OPENCV})
     message(STATUS "OpenCV not found, disabled")
@@ -1261,12 +1271,6 @@ endif()
 ######################################################################################
 
 if(NOT DEFINED DEFAULT_ENABLE_ICD)
-
-if (MSVC)
-  message(STATUS "Building ICD not yet supported on Windows.")
-  set(DEFAULT_ENABLE_ICD 0 CACHE INTERNAL "Going to use ICD loader")
-
-else()
 
   # pkg-config doesn't work with cross-compiling
   if(PKG_CONFIG_EXECUTABLE)
@@ -1349,8 +1353,6 @@ else()
   endif()
 
   set(DEFAULT_ENABLE_ICD ${HAVE_OCL_ICD_30_COMPATIBLE} CACHE INTERNAL "ICD loader availability")
-
-endif()
 
 endif()
 
@@ -2491,7 +2493,6 @@ if (ENABLE_LLVM)
   MESSAGE(STATUS "LLVM_CPPFLAGS: ${LLVM_CPPFLAGS}")
   MESSAGE(STATUS "LLVM_LDFLAGS: ${LLVM_LDFLAGS}")
   MESSAGE(STATUS "LLVM_LIBDIR: ${LLVM_LIBDIR}")
-  MESSAGE(STATUS "LLVM_INCLUDEDIR: ${LLVM_INCLUDEDIR}")
   MESSAGE(STATUS "LLVM_SRC_ROOT: ${LLVM_SRC_ROOT}")
   MESSAGE(STATUS "LLVM_OBJ_ROOT: ${LLVM_OBJ_ROOT}")
   MESSAGE(STATUS "LLVM_INCLUDE_DIRS: ${LLVM_INCLUDE_DIRS}")
@@ -2579,7 +2580,8 @@ MESSAGE(STATUS "ENABLE_RDMA: ${ENABLE_RDMA}")
 MESSAGE(STATUS "ENABLE_CL_GET_GL_CONTEXT: ${ENABLE_CL_GET_GL_CONTEXT}")
 MESSAGE(STATUS "ENABLE_OPENGL_INTEROP: ${ENABLE_OPENGL_INTEROP}")
 MESSAGE(STATUS "ENABLE_EGL_INTEROP: ${ENABLE_EGL_INTEROP}")
-MESSAGE(STATUS "ENABLE_SIGNAL_HANDLERS: ${ENABLE_SIGNAL_HANDLERS}")
+MESSAGE(STATUS "ENABLE_SIGFPE_HANDLER: ${ENABLE_SIGFPE_HANDLER}")
+MESSAGE(STATUS "ENABLE_SIGUSR2_HANDLER: ${ENABLE_SIGUSR2_HANDLER}")
 MESSAGE(STATUS "ENABLE_SLEEF: ${ENABLE_SLEEF}")
 MESSAGE(STATUS "ENABLE_SPIRV: ${ENABLE_SPIRV}")
 MESSAGE(STATUS "ENABLE_VALGRIND: ${ENABLE_VALGRIND}")

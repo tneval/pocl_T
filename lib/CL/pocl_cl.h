@@ -32,6 +32,14 @@
 #include <errno.h>
 #include <stdio.h>
 
+#if defined(__FreeBSD__)
+#include <stdlib.h>
+#elif defined(_WIN32)
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
+
 #ifdef ENABLE_VALGRIND
 #include <valgrind/helgrind.h>
 #endif
@@ -41,6 +49,7 @@
 #endif
 
 #include "pocl.h"
+
 #include "pocl_debug.h"
 #include "pocl_hash.h"
 #include "pocl_runtime_config.h"
@@ -50,8 +59,8 @@
 #  include "pocl_icd.h"
 #endif
 
+
 #include <CL/cl_egl.h>
-#include <CL/opencl.h>
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ < 199901L
 # if __GNUC__ >= 2
@@ -1126,6 +1135,13 @@ struct _cl_device_id {
   /* The program scope variable pass takes program-scope variables and replaces
      them by references into a buffer, and creates an initializer kernel. */
   cl_bool run_program_scope_variables_pass;
+  /* Some architectures (x86) trap when encountering undefined behavior (UB)
+   * of div/rem, and have no way to disable this behavior. ARM has optional
+   * trapping, and RISC-V has mandatory non-trapping. OpenCL explicitly
+   * forbids raising exceptions on division for any values that trigger UB.
+   * This pass adds checks of input operands to div/rem so that UB is
+   * never triggered. */
+  cl_bool run_sanitize_divrem_pass;
 
   /* If CL_TRUE, pocl_llvm_build_program will ignore pocl's OpenCL headers
    * that perform built-in renames during OpenCL C build and relies on
@@ -1167,6 +1183,7 @@ struct _cl_device_id {
   const char* llvm_cpu; /* the llvm CPU variant to use */
   const char *llvm_abi; /* the ABI to use */
   const char* llvm_fp_contract_mode; /* the floating point contract mde to use */
+  /* function to replace intrinsic at linking stage */
   llvm_intrin_replace_fn llvm_intrin_replace;
 
   /* A running number (starting from zero) across all the device instances.
@@ -1499,6 +1516,9 @@ struct _cl_context {
   /* The maximum of CL_DEVICE_MEM_BASE_ADDR_ALIGN across the devices in the
    * context. */
   cl_uint mem_base_addr_align;
+
+  /* True if all devices support cl_ext_buffer_device_address */
+  cl_bool all_devices_support_bda;
 
 #ifdef ENABLE_LLVM
   void *llvm_context_data;

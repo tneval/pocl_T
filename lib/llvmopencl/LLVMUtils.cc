@@ -54,6 +54,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include "PHIsToAllocas.h"
 #include "ParallelRegion.h"
 #include "RemoveBarrierCalls.h"
+#include "SanitizeUBofDivRem.h"
 #include "SubCFGFormation.h"
 #include "VariableUniformityAnalysis.h"
 #include "WorkItemAliasAnalysis.h"
@@ -694,6 +695,7 @@ void registerPassBuilderPasses(llvm::PassBuilder &PB) {
   AutomaticLocals::registerWithPB(PB);
   BarrierTailReplication::registerWithPB(PB);
   CanonicalizeBarriers::registerWithPB(PB);
+  SanitizeUBofDivRem::registerWithPB(PB);
   FlattenAll::registerWithPB(PB);
   FlattenBarrierSubs::registerWithPB(PB);
   FlattenGlobals::registerWithPB(PB);
@@ -730,9 +732,21 @@ llvm::Type *SizeT(llvm::Module *M) {
   return IntegerType::get(M->getContext(), AddressBits);
 }
 
+bool isWorkitemFunctionWithOnlyCompilerExpandableCalls(const llvm::Function &F) {
+  Instruction::const_use_iterator UI = F.use_begin(), UE = F.use_end();
+  for (; UI != UE; ++UI) {
+    llvm::CallInst *Call = dyn_cast<llvm::CallInst>(UI->getUser());
+    if (Call == nullptr)
+      continue;
+    if (!isCompilerExpandableWIFunctionCall(*Call))
+      return false;
+  }
+  return true;
+}
+
 bool isCompilerExpandableWIFunctionCall(const llvm::CallInst &Call) {
   auto Callee = Call.getCalledFunction();
-  if (Callee == nullptr /* Inline asm? */ || !Callee->isDeclaration())
+  if (Callee == nullptr /* Inline asm? */)
     return false;
   if (Callee->getName() != GID_BUILTIN_NAME &&
       Callee->getName() != GS_BUILTIN_NAME &&

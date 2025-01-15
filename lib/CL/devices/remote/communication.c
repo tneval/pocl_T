@@ -41,7 +41,6 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "CL/cl_platform.h"
 #include "common.h"
 #include "pocl_cl.h"
 #include "pocl_debug.h"
@@ -51,7 +50,6 @@
 #include "pocl_timing.h"
 #include "remote.h"
 #include "utlist.h"
-#include <CL/cl.h>
 
 #ifdef ENABLE_RDMA
 #include "pocl_rdma.h"
@@ -918,10 +916,15 @@ pocl_remote_reader_pthread (void *aa)
                       finish_running_cmd (cmd, NETCMD_FAILED);
                     }
                   POCL_UNLOCK (inflight->mutex);
+
+#if defined(ENABLE_REMOTE_DISCOVERY_AVAHI)                                    \
+  || defined(ENABLE_REMOTE_DISCOVERY_DHT)                                     \
+  || defined(ENABLE_REMOTE_DISCOVERY_ANDROID)
                   POCL_LOCK (connection->discovery_reconnect_guard.mutex);
                   POCL_WAIT_COND (connection->discovery_reconnect_guard.cond,
                                   connection->discovery_reconnect_guard.mutex);
                   POCL_UNLOCK (connection->discovery_reconnect_guard.mutex);
+#endif
                 }
               goto TRY_RECONNECT;
             }
@@ -2371,7 +2374,7 @@ pocl_network_create_buffer (remote_device_data_t *ddata, cl_mem mem,
 
   SET_REMOTE_ID (buffer, mem->id);
 
-  if (mem->flags & CL_MEM_DEVICE_ADDRESS_EXT)
+  if (mem->flags & CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT)
     {
       assert (device_addr != NULL);
       *device_addr = (void *)netcmd->reply.m.create_buffer.device_addr;

@@ -205,7 +205,7 @@ if(ENABLE_HOST_CPU_DEVICES)
   list(APPEND POCL_DEVICES_SOURCES common_utils.h common_utils.c)
 endif()
 
-if(ENABLE_SIGNAL_HANDLERS)
+if(ENABLE_SIGFPE_HANDLER OR ENABLE_SIGUSR2_HANDLER)
   list(APPEND POCL_DEVICES_SOURCES signal_handlers.c)
 endif()
 
@@ -223,9 +223,14 @@ if(HAVE_ONNXRT)
   target_link_libraries("pocl-devices" PRIVATE onnxruntime::onnxruntime)
 endif ()
 if(HAVE_OPENCV)
-  add_dependencies("pocl-devices" pocl_dbk_khr_dnn_utils)
-  target_link_libraries("pocl-devices" PRIVATE $<TARGET_OBJECTS:pocl_dbk_khr_dnn_utils> opencv_dnn)
+  target_link_libraries("pocl-devices" PRIVATE opencv_dnn)
 endif ()
+if(BUILD_SHARED_LIBS AND MSVC)
+  # Inject __declspec(dllexport).
+  target_compile_definitions("pocl-devices" PRIVATE EXPORT_POCL_LIB)
+  target_compile_definitions("pocl-devices" INTERFACE IMPORT_POCL_LIB)
+endif()
+
 
 set(POCL_DEVICES_OBJS "${POCL_DEVICES_OBJS}"
     "$<TARGET_OBJECTS:pocl-devices>")

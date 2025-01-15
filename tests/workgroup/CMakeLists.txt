@@ -2,6 +2,7 @@
 #   CMake build system files
 #
 #   Copyright (c) 2014-2024 pocl developers
+#                 2024 Pekka Jääskeläinen / Intel Finland Oy
 #
 #   Permission is hereby granted, free of charge, to any person obtaining a copy
 #   of this software and associated documentation files (the "Software"), to deal
@@ -231,3 +232,5 @@ set_property(TEST
   "workgroup/b_loop_with_none_of_the_WIs_reaching_the_barrier_loopvec"
   "workgroup/cond_barriers_in_for_loopvec"
   APPEND PROPERTY LABELS "level0")
+
+add_symlink_to_built_opencl_dynlib(run_kernel)

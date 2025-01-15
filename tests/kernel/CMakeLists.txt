@@ -265,6 +265,12 @@ foreach(VARIANT ${VARIANTS})
 
 endforeach()
 
+if(ENABLE_POCLCC)
+  add_test(NAME "kernel/test_ptr_compare_build"
+    COMMAND "${CMAKE_BINARY_DIR}/bin/poclcc" -o /dev/null
+      "${CMAKE_CURRENT_SOURCE_DIR}/test_ptr_compare.cl")
+endif()
+
 ######################################################################
 
 
@@ -394,3 +400,6 @@ set_property(TEST
   "kernel/test_ucharn_loopvec"
   "kernel/test_image_query_funcs_loopvec"
   APPEND PROPERTY LABELS "level0")
+
+add_symlink_to_built_opencl_dynlib(
+  kernel test_shuffle image_query_funcs sampler_address_clamp)

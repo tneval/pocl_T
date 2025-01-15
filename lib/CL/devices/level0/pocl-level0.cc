@@ -499,7 +499,7 @@ static int linkWithSpirvLink(cl_program Program, cl_uint DeviceI,
   for (auto &Path : SpvBinaryPaths) {
     CompilationArgs.push_back(Path);
   }
-  CompilationArgs2.reserve(CompilationArgs.size() + 1);
+  CompilationArgs2.resize(CompilationArgs.size() + 1);
   for (unsigned i = 0; i < CompilationArgs.size(); ++i)
     CompilationArgs2[i] = (char *)CompilationArgs[i].data();
   CompilationArgs2[CompilationArgs.size()] = nullptr;
@@ -535,7 +535,7 @@ static int runLLVMOpt(cl_program Program, cl_uint DeviceI,
   CompilationArgs.push_back(ProgramBcPathTemp);
   CompilationArgs.push_back(ProgramBcOldPathTemp);
 
-  CompilationArgs2.reserve(CompilationArgs.size() + 1);
+  CompilationArgs2.resize(CompilationArgs.size() + 1);
   for (unsigned i = 0; i < CompilationArgs.size(); ++i)
     CompilationArgs2[i] = (char *)CompilationArgs[i].data();
   CompilationArgs2[CompilationArgs.size()] = nullptr;
@@ -567,7 +567,7 @@ static int linkWithLLVMLink(cl_program Program, cl_uint DeviceI,
   for (auto &Path : BcBinaryPaths) {
     CompilationArgs.push_back(Path);
   }
-  CompilationArgs2.reserve(CompilationArgs.size() + 1);
+  CompilationArgs2.resize(CompilationArgs.size() + 1);
   for (unsigned i = 0; i < CompilationArgs.size(); ++i)
     CompilationArgs2[i] = (char *)CompilationArgs[i].data();
   CompilationArgs2[CompilationArgs.size()] = nullptr;
@@ -584,12 +584,12 @@ static int linkWithLLVMLink(cl_program Program, cl_uint DeviceI,
   if (Err != CL_SUCCESS)
     return Err;
 
-  Err = pocl_convert_bitcode_to_spirv(ProgramBcPathTemp,
-                                      nullptr, 0,
-                                      Program, DeviceI,
-                                      1, // useIntelExt
-                                      ProgramSpvPathTemp,
-                                      nullptr, nullptr);
+  cl_device_id Dev = Program->devices[DeviceI];
+  Level0Device *Device = static_cast<Level0Device *>(Dev->data);
+  Err = pocl_convert_bitcode_to_spirv(
+      ProgramBcPathTemp, nullptr, 0, Program, DeviceI,
+      1, // useIntelExt
+      ProgramSpvPathTemp, nullptr, nullptr, Device->getSupportedSpvVersion());
 
   POCL_RETURN_ERROR_ON((Err != 0), CL_BUILD_PROGRAM_FAILURE,
                        "llvm-spirv exited with nonzero code\n");
@@ -643,14 +643,12 @@ int pocl_level0_build_source(cl_program Program, cl_uint DeviceI,
     if (Err != CL_SUCCESS)
       return Err;
 
-    Err = pocl_convert_bitcode_to_spirv(nullptr,
-                                        (char*)Program->binaries[DeviceI],
-                                        Program->binary_sizes[DeviceI],
-                                        Program, DeviceI,
-                                        1, // useIntelExt
-                                        ProgramSpvPathTemp,
-                                        &OutputBinary,
-                                        &OutputBinarySize);
+    Err = pocl_convert_bitcode_to_spirv(
+        nullptr, (char *)Program->binaries[DeviceI],
+        Program->binary_sizes[DeviceI], Program, DeviceI,
+        1, // useIntelExt
+        ProgramSpvPathTemp, &OutputBinary, &OutputBinarySize,
+        Device->getSupportedSpvVersion());
     POCL_RETURN_ERROR_ON((Err != 0), CL_BUILD_PROGRAM_FAILURE,
                          "llvm-spirv exited with nonzero code\n");
 
@@ -773,13 +771,14 @@ int pocl_level0_build_binary(cl_program Program, cl_uint DeviceI,
                            "the binary supplied to level0 driver is "
                            "not a recognized binary type\n");
 
-      Err = pocl_convert_bitcode_to_spirv(ProgramBcPathTemp,
-                                          (char *)Program->binaries[DeviceI],
-                                          Program->binary_sizes[DeviceI],
-                                          Program, DeviceI,
-                                          1, // useIntelExt
-                                          ProgramSpvPathTemp,
-                                          &OutputBinary, &OutputBinarySize);
+      cl_device_id Dev = Program->devices[DeviceI];
+      Level0Device *Device = static_cast<Level0Device *>(Dev->data);
+      Err = pocl_convert_bitcode_to_spirv(
+          ProgramBcPathTemp, (char *)Program->binaries[DeviceI],
+          Program->binary_sizes[DeviceI], Program, DeviceI,
+          1, // useIntelExt
+          ProgramSpvPathTemp, &OutputBinary, &OutputBinarySize,
+          Device->getSupportedSpvVersion());
       POCL_RETURN_ERROR_ON((Err != 0), CL_BUILD_PROGRAM_FAILURE,
                            "failed to compile BC -> SPV\n");
       Program->program_il = OutputBinary;
@@ -1443,7 +1442,7 @@ int pocl_level0_alloc_mem_obj(cl_device_id ClDevice, cl_mem Mem, void *HostPtr) 
     // handle all other cases here.
     // CL_MEM_USE_HOST_PTR without SVM
     //   handled by normal memory + memcpy at sync points
-    // CL_MEM_DEVICE_ADDRESS_EXT:
+    // CL_MEM_DEVICE_{PRIVATE,SHARED}_ADDRESS_EXT:
     //   Treat cl_ext_buffer_device_address identically as USM Device.
     //   If we passed an SVM/USM address, we can use it directly in the
     //   previous branch. That should be at least a USM Device allocation.
