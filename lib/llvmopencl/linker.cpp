@@ -696,8 +696,11 @@ int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
   for (FI = Program->begin(), FE = Program->end(); FI != FE; FI++) {
     // Do not link in work-item functions when we can expand all the
     // calls by the compiler.
-    if (!ClDev->spmd && isWorkitemFunctionWithOnlyCompilerExpandableCalls(*FI))
-      continue;
+    if(CurrentWgMethod != "fallback"){
+      if (!ClDev->spmd && isWorkitemFunctionWithOnlyCompilerExpandableCalls(*FI))
+        continue;
+    }
+    
     if (FI->isDeclaration()) {
       DB_PRINT("Pre-link: %s is not defined\n", fi->getName().data());
       DeclaredFunctions.insert(FI->getName());
@@ -762,9 +765,11 @@ int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
       llvm::StringRef FName = DeclIter.getKey();
       Function *F = Program->getFunction(FName);
 
-      if (!ClDev->spmd && isWorkitemFunctionWithOnlyCompilerExpandableCalls(*F))
-        continue;
-
+      if(CurrentWgMethod != "fallback"){
+        if (!ClDev->spmd && isWorkitemFunctionWithOnlyCompilerExpandableCalls(*F))
+          continue;
+      }
+      
       if ((F == NULL) ||
           (F->isDeclaration() &&
            // A target might want to expose the C99 printf in
