@@ -696,7 +696,7 @@ int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
   for (FI = Program->begin(), FE = Program->end(); FI != FE; FI++) {
     // Do not link in work-item functions when we can expand all the
     // calls by the compiler.
-    if(CurrentWgMethod != "fallback"){
+    if(CurrentWgMethod != "fiber"){
       if (!ClDev->spmd && isWorkitemFunctionWithOnlyCompilerExpandableCalls(*FI))
         continue;
     }
@@ -765,7 +765,7 @@ int link(llvm::Module *Program, const llvm::Module *Lib, std::string &Log,
       llvm::StringRef FName = DeclIter.getKey();
       Function *F = Program->getFunction(FName);
 
-      if(CurrentWgMethod != "fallback"){
+      if(CurrentWgMethod != "fiber"){
         if (!ClDev->spmd && isWorkitemFunctionWithOnlyCompilerExpandableCalls(*F))
           continue;
       }

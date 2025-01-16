@@ -87,8 +87,8 @@ set(LLVMPASSES_SOURCES "AllocasToEntry.cc"
                        "WorkitemHandlerChooser.h"
                        "WorkitemLoops.cc"
                        "WorkitemLoops.h"
-                       "SimpleFallback.cc"
-                       "SimpleFallback.h"
+                       "Fiber.cc"
+                       "Fiber.h"
                        "SubgroupBarrier.h")
 
 if (ENABLE_REMOTE_SERVER)

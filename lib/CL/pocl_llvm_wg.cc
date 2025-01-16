@@ -530,11 +530,11 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
   if (!Dev->spmd) {
 
 
-    if(CurrentWgMethod == "fallback"){
+    if(CurrentWgMethod == "fiber"){
       addPass(Passes, "lcssa");
       addPass(Passes, "phistoallocas");
       addPass(Passes, "canon-barriers");
-      addPass(Passes, "simplefallback");
+      addPass(Passes, "fiber");
       addPass(Passes, "remove-barriers");
     }else{
 
@@ -624,7 +624,7 @@ static void addStage2PassesToPipeline(cl_device_id Dev,
     addPass(Passes, "always-inline", PassType::Module);
   }
 
-  if(CurrentWgMethod != "fallback"){
+  if(CurrentWgMethod != "fiber"){
     // Attempt to move all allocas to the entry block to avoid the need for
     // dynamic stack which is problematic for some architectures.
     addPass(Passes, "allocastoentry");

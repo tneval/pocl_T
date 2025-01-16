@@ -35,7 +35,7 @@
 
 namespace pocl {
 
-enum class WorkitemHandlerType { LOOPS, CBS, FALLBACK, INVALID };
+enum class WorkitemHandlerType { LOOPS, CBS, FIBER, INVALID };
 // this is required because we can only return class/struct from LLVM Analysis
 struct WorkitemHandlerResult {
   WorkitemHandlerType WIH;

@@ -61,8 +61,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include "Workgroup.h"
 #include "WorkitemHandlerChooser.h"
 #include "WorkitemLoops.h"
-
-#include "SimpleFallback.h"
+#include "Fiber.h"
 
 #include "LLVMUtils.h"
 POP_COMPILER_DIAGS
@@ -712,9 +711,8 @@ void registerPassBuilderPasses(llvm::PassBuilder &PB) {
   SubCFGFormation::registerWithPB(PB);
   Workgroup::registerWithPB(PB);
   WorkitemLoops::registerWithPB(PB);
+  Fiber::registerWithPB(PB);
   PoCLCFGPrinter::registerWithPB(PB);
-
-  SimpleFallback::registerWithPB(PB);
 }
 
 void registerFunctionAnalyses(llvm::PassBuilder &PB) {

@@ -71,10 +71,7 @@ static bool needsPHIsToAllocas(Function &F, WorkitemHandlerType WIH) {
   if (!isKernelToProcess(F))
     return false;
   
-  if(WIH == WorkitemHandlerType::FALLBACK)
-    return true;
-
-  if(WIH == WorkitemHandlerType::FALLBACK)
+  if(WIH == WorkitemHandlerType::FIBER)
     return true;
 
   if (WIH != WorkitemHandlerType::LOOPS &&

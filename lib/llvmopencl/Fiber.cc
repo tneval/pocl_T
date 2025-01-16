@@ -1,5 +1,5 @@
 #include "LLVMUtils.h"
-#include "SimpleFallback.h"
+#include "Fiber.h"
 #include "WorkitemHandlerChooser.h"
 #include "VariableUniformityAnalysis.h"
 #include "VariableUniformityAnalysisResult.hh"
@@ -16,21 +16,20 @@
 
 #include <iostream>
 
-#define PASS_NAME "simplefallback"
-#define PASS_CLASS pocl::SimpleFallback
+#define PASS_NAME "fiber"
+#define PASS_CLASS pocl::Fiber
 #define PASS_DESC "Simple and robust work group function generator"
 
 //#define DBG
 
 namespace pocl{
 
-class SimpleFallbackImpl : public pocl::WorkitemHandler{
+class FiberImpl : public pocl::WorkitemHandler{
 
 public:
-    SimpleFallbackImpl(llvm::DominatorTree &DT, llvm::LoopInfo &LI,
-                    llvm::PostDominatorTree &PDT,
+    FiberImpl(llvm::DominatorTree &DT,
                     VariableUniformityAnalysisResult &VUA)
-      : WorkitemHandler(), DT(DT), LI(LI), PDT(PDT), VUA(VUA) {}
+      : WorkitemHandler(), DT(DT), VUA(VUA) {}
 
     virtual bool runOnFunction(llvm::Function &F);
 
@@ -41,14 +40,11 @@ protected:
 
 // TODO: Check what is actually needed, these are from wiloops
 private:
-    using BasicBlockVector = std::vector<llvm::BasicBlock *>;
     using InstructionIndex = std::set<llvm::Instruction *>;
     using InstructionVec = std::vector<llvm::Instruction *>;
     using StrInstructionMap = std::map<std::string, llvm::AllocaInst *>;
 
     llvm::DominatorTree &DT;
-    llvm::LoopInfo &LI;
-    llvm::PostDominatorTree &PDT;
     llvm::Module *M;
     llvm::Function *F;
 
@@ -111,7 +107,7 @@ private:
 };
 
 
-llvm::Instruction *SimpleFallbackImpl::addContextRestore(
+llvm::Instruction *FiberImpl::addContextRestore(
     llvm::Value *Val, llvm::AllocaInst *AllocaI, llvm::Type *LoadInstType,
     bool PaddingWasAdded, llvm::Instruction *Before, bool isAlloca) {
 
@@ -132,7 +128,7 @@ llvm::Instruction *SimpleFallbackImpl::addContextRestore(
 
 
 llvm::Instruction *
-SimpleFallbackImpl::addContextSave(llvm::Instruction *Def,
+FiberImpl::addContextSave(llvm::Instruction *Def,
                                   llvm::AllocaInst *AllocaI) {
 
   if (llvm::isa<llvm::AllocaInst>(Def)) {
@@ -173,7 +169,7 @@ SimpleFallbackImpl::addContextSave(llvm::Instruction *Def,
 }
 
 
-void SimpleFallbackImpl::addContextSaveRestore(llvm::Instruction *Def) {
+void FiberImpl::addContextSaveRestore(llvm::Instruction *Def) {
 
   // Allocate the context data array for the variable.
   bool PaddingAdded = false;
@@ -233,7 +229,7 @@ void SimpleFallbackImpl::addContextSaveRestore(llvm::Instruction *Def) {
 
 
 llvm::Instruction *
-SimpleFallbackImpl::getLocalIdInRegion(llvm::Instruction *Instr, size_t Dim) {
+FiberImpl::getLocalIdInRegion(llvm::Instruction *Instr, size_t Dim) {
   
   llvm::IRBuilder<> Builder(Instr);
   return Builder.CreateLoad(ST, LocalIdGlobals[Dim]);
@@ -241,7 +237,7 @@ SimpleFallbackImpl::getLocalIdInRegion(llvm::Instruction *Instr, size_t Dim) {
 
 
 // Get the linear wi ID
-llvm::Value *SimpleFallbackImpl::getLinearWIIndexInRegion(llvm::Instruction* Instr) {
+llvm::Value *FiberImpl::getLinearWIIndexInRegion(llvm::Instruction* Instr) {
 
     assert(LocalSizeIterators[0] != NULL && LocalSizeIterators[1] != NULL);
 
@@ -281,7 +277,7 @@ llvm::Value *SimpleFallbackImpl::getLinearWIIndexInRegion(llvm::Instruction* Ins
 ///////////////////////////////////////////////////////////////////
 // THE NEW CONTEXT SAVE
 
-void SimpleFallbackImpl::identifyContextVars()
+void FiberImpl::identifyContextVars()
 {
     for (auto &BB : *F) {
         for (auto &Instr : BB) {
@@ -312,7 +308,7 @@ void SimpleFallbackImpl::identifyContextVars()
     }
 } // identifyContextVars()
 
-void SimpleFallbackImpl::allocateContextVars()
+void FiberImpl::allocateContextVars()
 {
     for(auto &instr : contextVars){
 
@@ -324,7 +320,7 @@ void SimpleFallbackImpl::allocateContextVars()
 
 ////////////////////////////////////////////////////////////////////
 
-llvm::AllocaInst *SimpleFallbackImpl::getContextArray(llvm::Instruction *Inst,bool &PaddingAdded) {
+llvm::AllocaInst *FiberImpl::getContextArray(llvm::Instruction *Inst,bool &PaddingAdded) {
     
     PaddingAdded = false;
 
@@ -356,7 +352,7 @@ llvm::AllocaInst *SimpleFallbackImpl::getContextArray(llvm::Instruction *Inst,bo
 
 
 // DECIDE WHETHER VARIABLE SHOULD BE CONTEXT SAVED
-bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
+bool FiberImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
 
     if (llvm::isa<llvm::BranchInst>(Instr)){
 
@@ -393,7 +389,7 @@ bool SimpleFallbackImpl::shouldNotBeContextSaved(llvm::Instruction *Instr) {
 
 
 // Initialize local ids as zero
-void SimpleFallbackImpl::initializeLocalIds(llvm::BasicBlock *Entry, llvm::IRBuilder<> *builder) {
+void FiberImpl::initializeLocalIds(llvm::BasicBlock *Entry, llvm::IRBuilder<> *builder) {
 
     llvm::GlobalVariable *GVX = LocalIdIterators[0];
     if (GVX != NULL)
@@ -409,7 +405,7 @@ void SimpleFallbackImpl::initializeLocalIds(llvm::BasicBlock *Entry, llvm::IRBui
 }
 
 // Cast values stored in WorkitemHandler to global variable pointers.
-void SimpleFallbackImpl::initializeGlobalIterators(){
+void FiberImpl::initializeGlobalIterators(){
 
     for(int i = 0; i < 3; i++){
         // _local_id_xyz
@@ -431,7 +427,7 @@ void SimpleFallbackImpl::initializeGlobalIterators(){
 }
 
 // Calculate the number of work items in wg.
-llvm::Value *SimpleFallbackImpl::getNumberOfWIs(llvm::IRBuilder<> &Builder){
+llvm::Value *FiberImpl::getNumberOfWIs(llvm::IRBuilder<> &Builder){
 
     llvm::Value *nWI;
 
@@ -466,7 +462,7 @@ llvm::Value *SimpleFallbackImpl::getNumberOfWIs(llvm::IRBuilder<> &Builder){
 }
 
 
-llvm::AllocaInst *SimpleFallbackImpl::allocateStorage(llvm::IRBuilder<> &entryBlockBuilder, std::string varName, llvm::Value *nWI){
+llvm::AllocaInst *FiberImpl::allocateStorage(llvm::IRBuilder<> &entryBlockBuilder, std::string varName, llvm::Value *nWI){
 
     // Create stack storage for index variable that directs wi to correct
     // next block after jumping from dispatcher.
@@ -516,7 +512,7 @@ llvm::AllocaInst *SimpleFallbackImpl::allocateStorage(llvm::IRBuilder<> &entryBl
 
 
 
-bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
+bool FiberImpl::runOnFunction(llvm::Function &Func) {
 
     M = Func.getParent();
     F = &Func;
@@ -1112,7 +1108,7 @@ bool SimpleFallbackImpl::runOnFunction(llvm::Function &Func) {
 
 }
 
-llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
+llvm::PreservedAnalyses Fiber::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
     
     // We only want to process kernel functions
     if (!isKernelToProcess(F)){
@@ -1124,27 +1120,17 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
     
     WorkitemHandlerType WIH = AM.getResult<WorkitemHandlerChooser>(F).WIH;
 
-    if (WIH != WorkitemHandlerType::FALLBACK)
+    if (WIH != WorkitemHandlerType::FIBER)
     {
         return llvm::PreservedAnalyses::all();
     }
     
-
-#ifdef DBG
-
-    if(WIH == WorkitemHandlerType::FALLBACK){
-        std::cout << "WIH  is of type FALLBACK" << std::endl;
-    }
-    llvm::errs() << F.getName() << "\n";
-#endif
 
     //F.dump();
 
     //dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
 
     auto &DT = AM.getResult<llvm::DominatorTreeAnalysis>(F);
-    auto &PDT = AM.getResult<llvm::PostDominatorTreeAnalysis>(F);
-    auto &LI = AM.getResult<llvm::LoopAnalysis>(F);
     auto &VUA = AM.getResult<VariableUniformityAnalysis>(F);
 
     // Not sure what these do
@@ -1152,7 +1138,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
     PAChanged.preserve<VariableUniformityAnalysis>();
     PAChanged.preserve<WorkitemHandlerChooser>();
 
-    SimpleFallbackImpl WIL(DT, LI, PDT, VUA);
+    FiberImpl fiber(DT, VUA);
 
 
     //dumpCFG(F, F.getName().str() + "_before_fallback.dot", nullptr,nullptr);
@@ -1161,7 +1147,7 @@ llvm::PreservedAnalyses SimpleFallback::run(llvm::Function &F, llvm::FunctionAna
     F.dump();
 #endif
 
-    bool ret_val = WIL.runOnFunction(F);
+    bool ret_val = fiber.runOnFunction(F);
 
 #ifdef DBG 
     F.dump();

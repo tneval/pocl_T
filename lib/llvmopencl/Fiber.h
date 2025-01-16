@@ -1,5 +1,5 @@
-#ifndef POCL_SIMPLEFALLBACK_H
-#define POCL_SIMPLEFALLBACK_H
+#ifndef POCL_FIBER_H
+#define POCL_FIBER_H
 
 #include "config.h"
 
@@ -12,7 +12,7 @@
 namespace pocl {
 
 
-class SimpleFallback : public llvm::PassInfoMixin<SimpleFallback>{
+class Fiber : public llvm::PassInfoMixin<Fiber>{
 
 public:
     static void registerWithPB(llvm::PassBuilder &B);
