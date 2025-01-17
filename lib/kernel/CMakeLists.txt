@@ -43,7 +43,7 @@ atan2pi.cl
 atanh.cl
 atanpi.cl
 atomics.cl
-barrier.ll
+workgroup_barrier.ll
 bitselect.cl
 cbrt.cl
 ceil.cl

@@ -36,6 +36,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 
 #include "Kernel.h"
 #include "Barrier.h"
+#include "WorkgroupBarrier.h"
 #include "DebugHelpers.h"
 
 #include "pocl.h"
@@ -57,7 +58,7 @@ void Kernel::getExitBlocks(SmallVectorImpl<llvm::BasicBlock *> &B) {
       // All exits must be barrier blocks.
       llvm::BasicBlock *BB = cast<BasicBlock>(i);
       if (!Barrier::hasBarrier(BB))
-        Barrier::create(BB->getTerminator());
+        WorkgroupBarrier::create(BB->getTerminator());
       B.push_back(BB);
     }
   }

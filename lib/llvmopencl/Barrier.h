@@ -1,5 +1,3 @@
-// Class for barrier instructions, modelled as a CallInstr.
-//
 // Copyright (c) 2011 Universidad Rey Juan Carlos
 //               2011-2019 Pekka Jääskeläinen
 //
@@ -34,17 +32,38 @@
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/Support/Casting.h>
 
-#define BARRIER_FUNCTION_NAME "pocl.barrier"
+#define WGBARRIER_FUNCTION_NAME "pocl.workgroup_barrier"
+#define SGBARRIER_FUNCTION_NAME "pocl.subgroup_barrier"
 
 namespace pocl {
 
+  // Base class for work-group and sub-group barrier instructions modelled as
+  // CallInstr. 
+  // Barrier has been made base class due to introduction of explicit sub-group
+  // barriers. Previously sub-group barriers were treated like work-group
+  // barriers, which was a problem in the case of diverging subgroups.
+  // Now work-group/sub-group barriers both identify as "barrier" which allows
+  // passes to work as before. Additionally, fiber-pass can differentiate 
+  // between the two types of barriers, which allows the correct handling
+  // of sub-groups. 
   class Barrier : public llvm::CallInst {
   public:
+    
+    // NOTE: Is this method still relevant? It's not used anywhere.
     static void GetBarriers(llvm::SmallVectorImpl<Barrier *> &B,
                             llvm::Module &M) {
-      llvm::Function *F = M.getFunction(BARRIER_FUNCTION_NAME);
-      if (F != NULL) {
-        for (llvm::Function::use_iterator I = F->use_begin(), E = F->use_end();
+      // For workgroup barriers
+      llvm::Function *Fwg = M.getFunction(WGBARRIER_FUNCTION_NAME);
+      if (Fwg != NULL) {
+        for (llvm::Function::use_iterator I = Fwg->use_begin(), E = Fwg->use_end();
+             I != E; ++I)
+          B.push_back(llvm::cast<Barrier>(*I));
+      }
+
+      // For subgroup barriers
+      llvm::Function *Fsg = M.getFunction(SGBARRIER_FUNCTION_NAME);
+      if (Fsg != NULL) {
+        for (llvm::Function::use_iterator I = Fsg->use_begin(), E = Fsg->use_end();
              I != E; ++I)
           B.push_back(llvm::cast<Barrier>(*I));
       }
@@ -63,32 +82,11 @@ namespace pocl {
       return false;
     }
 
-    /// Ensures there is a barrier call in the basic block before the given
-    /// instruction.
-    ///
-    /// Otherwise, creates a new one there.
-    ///
-    /// \returns The barrier.
-    static Barrier *create(llvm::Instruction *InsertBefore) {
-      llvm::Module *M = InsertBefore->getParent()->getParent()->getParent();
-
-      if (InsertBefore != &InsertBefore->getParent()->front() &&
-          llvm::isa<Barrier>(InsertBefore->getPrevNode()))
-        return llvm::cast<Barrier>(InsertBefore->getPrevNode());
-
-      llvm::FunctionCallee FC =
-        M->getOrInsertFunction(BARRIER_FUNCTION_NAME,
-                                llvm::Type::getVoidTy(M->getContext()));
-      llvm::Function *F = llvm::cast<llvm::Function>(FC.getCallee());
-      F->addFnAttr(llvm::Attribute::Convergent);
-      return llvm::cast<pocl::Barrier>
-        (llvm::CallInst::Create(F, "", InsertBefore));
-    }
-
     static bool classof(const Barrier *) { return true; }
     static bool classof(const llvm::CallInst *C) {
       return C->getCalledFunction() != NULL &&
-        C->getCalledFunction()->getName() == BARRIER_FUNCTION_NAME;
+        (C->getCalledFunction()->getName() == WGBARRIER_FUNCTION_NAME ||
+        C->getCalledFunction()->getName() == SGBARRIER_FUNCTION_NAME);
     }
     static bool classof(const Instruction *I) {
       return (llvm::isa<llvm::CallInst>(I) &&

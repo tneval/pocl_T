@@ -35,6 +35,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 #include "Barrier.h"
+#include "WorkgroupBarrier.h"
 #include "CanonicalizeBarriers.h"
 #include "LLVMUtils.h"
 #include "VariableUniformityAnalysis.h"
@@ -74,7 +75,7 @@ static bool canonicalizeBarriers(Function &F, WorkitemHandlerType Handler) {
 
     EffectiveEntry->takeName(Entry);
     Entry->setName("entry.barrier");
-    Barrier::create(Entry->getTerminator());
+    WorkgroupBarrier::create(Entry->getTerminator());
     changed |= true;
   }
 
@@ -106,7 +107,7 @@ static bool canonicalizeBarriers(Function &F, WorkitemHandlerType Handler) {
       else
         exit = SplitBlock(BB, t);
       exit->setName("exit.barrier");
-      Barrier::create(t);
+      WorkgroupBarrier::create(t);
       changed |= true;
     }
   }

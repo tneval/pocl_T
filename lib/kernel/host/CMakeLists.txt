@@ -242,9 +242,9 @@ sleef-pocl/trunc.cl
 )
 
 if(KERNEL_TRIPLE_TARGETS_MSVC_TOOLCHAIN)
-  list(APPEND SOURCES_WITH_SLEEF barrier-msvc.ll)
+  list(APPEND SOURCES_WITH_SLEEF workgroup_barrier-msvc.ll)
 else()
-  list(APPEND SOURCES_WITH_SLEEF barrier.ll)
+  list(APPEND SOURCES_WITH_SLEEF workgroup_barrier.ll)
 endif()
 
 if(HOST_CPU_ENABLE_CL_KHR_FP16)

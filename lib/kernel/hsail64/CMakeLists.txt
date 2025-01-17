@@ -27,13 +27,13 @@ include("bitcode_rules")
 
 set(KERNEL_SOURCES ${SOURCES_GENERIC})
 
-foreach(FILE printf.c printf_base.c barrier.ll)
+foreach(FILE printf.c printf_base.c workgroup_barrier.ll)
   list(REMOVE_ITEM KERNEL_SOURCES "${FILE}")
 endforeach()
 
 list(APPEND KERNEL_SOURCES svm_atomics.cl)
 
-foreach(FILE atomics.cl atomic_impl.ll barrier.c
+foreach(FILE atomics.cl atomic_impl.ll workgroup_barrier.c
         get_global_id.c get_local_id.c get_group_id.c
         get_global_size.c get_local_size.c get_global_offset.c
         get_num_groups.c get_work_dim.c

@@ -41,7 +41,7 @@ any.cl
 as_type.cl
 async_work_group_copy.cl
 async_work_group_strided_copy.cl
-barrier.ll
+workgroup_barrier.ll
 bitselect.cl
 cbrt.cl
 clamp.cl

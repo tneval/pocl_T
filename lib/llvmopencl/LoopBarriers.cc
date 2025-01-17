@@ -38,6 +38,7 @@ IGNORE_COMPILER_WARNING("-Wunused-parameter")
 #include <llvm/Transforms/Scalar/LoopPassManager.h>
 
 #include "Barrier.h"
+#include "WorkgroupBarrier.h"
 #include "LLVMUtils.h"
 #include "LoopBarriers.h"
 #include "VariableUniformityAnalysis.h"
@@ -81,14 +82,14 @@ static bool processLoopWithBarriers(Loop &L, llvm::DominatorTree &DT,
         std::cerr << "### before instr" << std::endl;
         Preheader->getTerminator()->dump();
 #endif
-        Barrier::create(Preheader->getTerminator());
+        WorkgroupBarrier::create(Preheader->getTerminator());
         Preheader->setName(Preheader->getName() + ".loopbarrier");
 
         // Add a barrier after the PHI nodes on the header (the replicated
         // headers will be merged afterwards).
         BasicBlock *Header = L.getHeader();
         if (Header->getFirstNonPHI() != &Header->front()) {
-          Barrier::create(Header->getFirstNonPHI());
+          WorkgroupBarrier::create(Header->getFirstNonPHI());
           Header->setName(Header->getName() + ".phibarrier");
           // Split the block to  create a replicable region of
           // the loop contents in case the phi node contains a
@@ -102,7 +103,7 @@ static bool processLoopWithBarriers(Loop &L, llvm::DominatorTree &DT,
         // after the exit decision.
         BasicBlock *BrExit = L.getExitingBlock();
         if (BrExit != NULL) {
-          Barrier::create(BrExit->getTerminator());
+          WorkgroupBarrier::create(BrExit->getTerminator());
           BrExit->setName(BrExit->getName() + ".brexitbarrier");
         }
 
@@ -110,7 +111,7 @@ static bool processLoopWithBarriers(Loop &L, llvm::DominatorTree &DT,
         if (Latch != NULL && BrExit != Latch) {
           // This loop has only one latch. Do not check for dominance, we
           // are probably running before BTR.
-          Barrier::create(Latch->getTerminator());
+          WorkgroupBarrier::create(Latch->getTerminator());
           Latch->setName(Latch->getName() + ".latchbarrier");
           return true;
         }
@@ -133,7 +134,7 @@ static bool processLoopWithBarriers(Loop &L, llvm::DominatorTree &DT,
             // (otherwise if might not even belong to this "tail", see
             // forifbarrier1 graph test).
             if (DT.dominates(j->getParent(), Latch2)) {
-              Barrier::create(Latch2->getTerminator());
+              WorkgroupBarrier::create(Latch2->getTerminator());
               Latch2->setName(Latch2->getName() + ".latchbarrier");
             }
           }

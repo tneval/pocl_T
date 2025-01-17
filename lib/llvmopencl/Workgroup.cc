@@ -401,11 +401,19 @@ bool WorkgroupImpl::runOnModule(Module &M, llvm::FunctionAnalysisManager &FAM) {
       GV->eraseFromParent();
   }
 
-  // remove the declaration of the pocl.barrier placeholder
-  if (auto *F = M.getFunction(BARRIER_FUNCTION_NAME)) {
+  // remove the declarations of the pocl.workgroup_barrier
+  // and pocl.subgroup_barrier placeholders
+  if (auto *F = M.getFunction(WGBARRIER_FUNCTION_NAME)) {
     FAM.clear(*F, "parallel.bc");
     F->eraseFromParent();
   }
+
+  if (auto *F = M.getFunction(SGBARRIER_FUNCTION_NAME)) {
+    FAM.clear(*F, "parallel.bc");
+    F->eraseFromParent();
+  }
+  
+  
 
   // Unify some attributes among all functions; this is necessary because
   // -O0 compiled builtin library has many attributes setup differently than
