@@ -1,15 +1,7 @@
 #ifndef POCL_SGBARRIER_H
 #define POCL_SGBARRIER_H
 
-#include "config.h"
 #include "Barrier.h"
-#include <llvm/Analysis/LoopInfo.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/ValueSymbolTable.h>
-#include <llvm/IR/GlobalValue.h>
-#include <llvm/Support/Casting.h>
 
 #define SGBARRIER_FUNCTION_NAME "pocl.subgroup_barrier"
 
