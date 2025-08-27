@@ -275,7 +275,9 @@ llvm_codegen (char *output, unsigned device_i, cl_kernel kernel,
       while ((*last_arg++ = *device_ld_arg++))
         {
         }
-
+        for (int i = 0; cmd_line[i] != NULL; i++) {
+    printf("clang cmd-line[%d]: %s\n", i, cmd_line[i]);
+}
       error = pocl_invoke_clang (device->llvm_target_triplet, cmd_line);
     }
   if (error)
